@@ -23,7 +23,7 @@
 #include "files/fileGriddedData.h"
 #include "files/fileSphericalHarmonics.h"
 #include "files/fileTimeSplinesGravityfield.h"
-#include "files/fileSatellite.h"
+#include "files/fileInstrument.h"
 #include "files/fileArcList.h"
 #include "files/fileNormalEquation.h"
 #include "files/filePolygon.h"
@@ -441,7 +441,7 @@ static PyObject* loadtimesplines(PyObject* /*self*/, PyObject* args)
       throw(Exception("Unable to parse arguments."));
     std::string fname(s);
 
-    TimeSplinesGravityfieldFile timeSplinesFile;
+    InFileTimeSplinesGravityfield timeSplinesFile;
     timeSplinesFile.open(FileName(fname));
 
     Time t = mjd2time(mjd);

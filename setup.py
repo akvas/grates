@@ -13,7 +13,7 @@ def configuration(parent_package='', top_path=None):
 
     include_dirs = [groops_dir]
     library_dirs = []
-    libraries = ['expat', 'z', 'gfortran']
+    libraries = ['expat', 'z', 'gfortran', 'stdc++fs']
 
     lapack_opts = get_info('lapack_opt', 0)
     include_dirs.extend(lapack_opts['include_dirs'])
@@ -47,7 +47,7 @@ setup(
     version='0.1',
     author='Andreas Kvas',
     description='A python package to compute mass transport from satellite gravimetry',
-    install_requires=['numpy', 'scipy', 'netcdf4', 'numpydoc'],
+    install_requires=['numpy', 'scipy', 'netcdf4', 'numpydoc', 'cartopy'],
     packages=['grates'],
     configuration=configuration,
     package_data={'grates': ['data/ddk_normals.npz', 'data/loadLoveNumbers_Gegout97.txt']}
