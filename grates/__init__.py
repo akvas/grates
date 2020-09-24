@@ -14,7 +14,7 @@ mission and its successor GRACE-FO.
 
 The features of grates are:
 
- * File I/O for common data formats including GFC files and COARDS compliant netCDF
+ * File I/O for common data formats including GFC files and netCDF files
  * Basic arithmetic operations for sets of potential coefficients
  * Propagation of spherical harmonic coefficients to gridded mass anomalies
  * Spatial filtering of potential coefficients
@@ -35,9 +35,7 @@ Modules
     grates.kernel
     grates.lstsq
     grates.plot
-    grates.signal
     grates.time
-    grates.transport
     grates.utilities
 
 """
