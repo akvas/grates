@@ -216,9 +216,9 @@ class FilterKernel:
     max_degree : int
         maximum filter degree
     """
-    def __init__(self, filter, max_degree, min_degree=0):
+    def __init__(self, filter, min_degree, max_degree):
 
-        self.__matrix = filter.matrix(max_degree, min_degree) if isinstance(filter, SpatialFilter) else filter
+        self.__matrix = filter.matrix(min_degree, max_degree) if isinstance(filter, SpatialFilter) else filter
         self.__min_degree = min_degree
         self.__max_degree = max_degree
 
