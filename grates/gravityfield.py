@@ -297,7 +297,7 @@ class PotentialCoefficients:
             anm_temp[idx_row, idx_col] = self.anm[idx_row, idx_col]*self.GM/self.R*kernel.inverse_coefficient(n)
 
         amp = np.zeros(self.anm.shape)
-        amp[:, 0] = anm_temp[:, 0]**2
+        amp[:, 0] = np.abs(anm_temp[:, 0])
         for m in range(1, self.max_degree() + 1):
             amp[m:, m] = np.sqrt(anm_temp[m:, m]**2 + anm_temp[m-1, m:]**2)
 
