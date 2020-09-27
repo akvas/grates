@@ -870,8 +870,8 @@ class NormalEquations:
         """
         Compute the (sparse) inverse of the normal equation coefficient matrix.
 
-        Paramters
-        ---------
+        Parameters
+        ----------
         sparse : bool
             flag whether to compute the sparse (incomplete) or dense inverse
         """
