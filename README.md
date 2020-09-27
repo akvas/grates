@@ -1,5 +1,8 @@
-grates - Gravity Field Analysis Tools for Earth System Studies
-=======================================================
+![grates logo](https://github.com/akvas/grates/blob/master/docs/source/_static/grates_banner.png)
+
+Features
+--------
+
 
 License
 -------
