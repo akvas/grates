@@ -1,4 +1,4 @@
-![grates logo](https://github.com/akvas/grates/blob/master/docs/source/_static/grates_banner.png)
+![grates logo](https://github.com/akvas/grates/blob/main/docs/source/_static/grates_banner.png)
 
 Features
 --------
