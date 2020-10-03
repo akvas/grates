@@ -11,6 +11,7 @@ import grates.utilities
 import grates.kernel
 import grates.gravityfield
 from scipy.special import roots_legendre
+import scipy.spatial
 
 
 class SurfaceElement(metaclass=abc.ABCMeta):
@@ -207,6 +208,35 @@ class Grid(metaclass=abc.ABCMeta):
 
         return IrregularGrid(remaining_longitude, remaining_latitude, remaining_areas,
                              self.semimajor_axis, self.flattening)
+
+    def nn_index(self, lon, lat):
+        """
+        Compute the nearest grid point of each point in the sample (lon, lat) and return it as as list of
+        indices for each grid point. The nearest neighbour is computed based on the 3D euclidean distance.
+
+        Parameters
+        ----------
+        lon: ndarray(m,)
+            longitude of sample points in radians
+        lat: ndarray(,m)
+            latitude of sample points in radians
+
+        Returns
+        -------
+        index : list of index arrays
+            indices of sample points for each grid point (index[k] contains the indices of all points in the sample
+            to which the k-th point is the nearest neighbour)
+        """
+        tree = scipy.spatial.cKDTree(self.cartesian_coordinates())
+        sample_coordinates = IrregularGrid(lon, lat, a=self.semimajor_axis, f=self.flattening).cartesian_coordinates()
+
+        _, index_3d = tree.query(sample_coordinates[::1, :])
+
+        point_index = [None] * self.point_count()
+        for k in range(len(point_index)):
+            point_index[k] = np.nonzero(k == index_3d)[0]
+
+        return point_index
 
 
 class RegularGrid(Grid):
@@ -494,8 +524,6 @@ class IrregularGrid(Grid):
         cells : list of SurfaceElement instances
             Voronoi cell for each grid point as surface element instance
         """
-        import scipy.spatial
-
         X = self.cartesian_coordinates()
         norm = np.sqrt(np.sum(X**2, axis=1))
         X /= norm[:, np.newaxis]
