@@ -95,6 +95,24 @@ class Grid(metaclass=abc.ABCMeta):
     def point_count(self):
         pass
 
+    def cartesian_coordinates(self):
+        """
+        Compute and return the grid points in cartesian coordinates.
+
+        Returns
+        -------
+        cartesian_coordinates : ndarray(point_count, 3)
+            ndarray containing the cartesian coordinates of the grid points (x, y, z).
+        """
+        lons, lats = self.longitude(), self.latitude()
+
+        e2 = 2 * self.flattening - self.flattening**2
+        radius_of_curvature = self.semimajor_axis / np.sqrt(1 - e2 * np.sin(lats)**2)
+
+        return np.vstack((radius_of_curvature * np.cos(lats) * np.cos(lons),
+                          radius_of_curvature * np.cos(lats) * np.sin(lons),
+                          (1 - e2) * radius_of_curvature * np.sin(lats))).T
+
     def mean(self, mask=None):
         """
         Compute the weighted average of grid points, potentially with a mask. The individual points are weighted
@@ -342,9 +360,35 @@ class RegularGrid(Grid):
 
         return A.T
 
+    def voronoi_cells(self):
+        """
+        Compute the global Voronoi diagram of the grid points. For regular grids, the Voronoi cells are assumed
+        to be rectangles centered at each grid point.
+
+        Returns
+        -------
+        cells : list of RectangularSurfaceElement instances
+            Voronoi cell for each grid point as RectangularSurfaceElement instance
+        """
+        dlon = np.diff(self.lons)
+        lon_edges = np.concatenate(([-np.pi], self.lons[0:-1] + 0.5 * dlon, [np.pi]))
+
+        dlat = np.diff(self.lats)
+        lat_edges = np.concatenate(([0.5 * np.pi], self.lats[0:-1] + 0.5 * dlat, [-0.5 * np.pi]))
+
+        cells = []
+        for l in range(self.lats.size):
+            for k in range(self.lons.size):
+                cells.append(RectangularSurfaceElement(lon_edges[k], lat_edges[l+1], lon_edges[k + 1] - lon_edges[k],
+                                                       lat_edges[l] - lat_edges[l + 1]))
+        return cells
+
 
 class IrregularGrid(Grid):
-
+    """
+    Base class for irregular point distributions on the ellipsoid. The points of an irregular grid are characterized
+    by longitude/latitude pairs which cannot be represented by just parallels and meridians.
+    """
     def __init__(self, longitude, latitude, area=None, a=6378137.0, f=298.2572221010**-1):
 
         self.lons = longitude
@@ -438,6 +482,41 @@ class IrregularGrid(Grid):
             Ynm[:, row_idx, col_idx] *= (continuation * grid_kernel.coefficient(n, r, colat))[:, np.newaxis]
 
         return grates.utilities.ravel_coefficients(Ynm, min_degree, max_degree).T
+
+    def voronoi_cells(self):
+        """
+        Compute the global spherical Voronoi diagram of the grid points. Before computing the surface tiles,
+        the grid points are mapped onto the unit sphere. Then, the resulting polygons are projected onto
+        the ellipsoid.
+
+        Returns
+        -------
+        cells : list of SurfaceElement instances
+            Voronoi cell for each grid point as surface element instance
+        """
+        import scipy.spatial
+
+        X = self.cartesian_coordinates()
+        norm = np.sqrt(np.sum(X**2, axis=1))
+        X /= norm[:, np.newaxis]
+
+        sv = scipy.spatial.SphericalVoronoi(X, radius=1)
+        vertex_lon = np.arctan2(sv.vertices[:, 1], sv.vertices[:, 0])
+        vertex_lat = np.arctan2(sv.vertices[:, 2], (1-self.flattening)**2 * np.sqrt(1 - sv.vertices[:, 2]**2))
+
+        cells = []
+        for region in sv.regions:
+            lon = vertex_lon[region]
+            if np.ptp(lon) > np.pi:
+                lon = np.mod(lon, 2 * np.pi)
+
+            lat = vertex_lat[region]
+
+            azimuth = np.arctan2(lat - np.mean(lat), lon - np.mean(lon))
+            idx = np.argsort(-azimuth)
+
+            cells.append(PolygonSurfaceElement(lon[idx], lat[idx]))
+        return cells
 
 
 class GeographicGrid(RegularGrid):
