@@ -620,28 +620,39 @@ class ReuterGrid(IrregularGrid):
 
         dlat = np.pi/level
 
-        points = [(0, np.pi * 0.5)]
-        areas = [2*np.pi * (1 - np.cos(dlat*0.5))]
+        self.__parallels = np.empty(level + 1)
+        self.__longitudes = np.empty(self.__parallels.size, dtype=object)
+
+        self.__parallels[0] = 0.5 * np.pi
+        self.__longitudes[0] = np.zeros(1)
+
         for k in range(1, level):
 
             theta = k * dlat
+            self.__parallels[k] = np.arctan2(np.cos(theta), (1-f)**2*np.sin(theta))
+
             point_count = int(2*np.pi/np.arccos((np.cos(dlat)-np.cos(theta)**2)/(np.sin(theta)**2)))
-            dlon = 2*np.pi/point_count
+            self.__longitudes[k] = np.empty(point_count)
+            for i in range(point_count):
+                self.__longitudes[k][i] = np.mod((i+1.5) * 2*np.pi/point_count+np.pi, 2*np.pi)-np.pi
 
-            points.extend([(np.mod((i+0.5) * 2*np.pi/point_count+np.pi, 2*np.pi)-np.pi, theta)
-                           for i in range(1, point_count + 1)])
-            areas.extend([dlon * 2 * np.sin(dlat*0.5) * np.cos(np.pi * 0.5 - theta)]*point_count)
+        self.__parallels[-1] = -0.5 * np.pi
+        self.__longitudes[-1] = np.zeros(1)
+        self.__areas = np.empty(self.__parallels.size)
+        self.__areas[0] = 2 * np.pi * (1 - np.cos(dlat * 0.5))
+        self.__areas[-1] = 2 * np.pi * (1 - np.cos(dlat * 0.5))
+        for k in range(1, self.__areas.size - 1):
+            self.__areas[k] = 4 * np.pi / self.__longitudes[k].size * np.sin(0.5 * dlat) * np.cos(self.__parallels[k])
 
-        points.append((0, -np.pi * 0.5))
-        areas.append(2 * np.pi * (1 - np.cos(dlat * 0.5)))
+        lons = []
+        lats = []
+        areas = []
+        for k in range(self.__parallels.size):
+            lons.append(self.__longitudes[k])
+            lats.append(np.full(self.__longitudes[k].size, self.__parallels[k]))
+            areas.append(np.full(self.__longitudes[k].size, self.__areas[k]))
 
-        areas = np.asarray(areas)
-        lons = np.zeros(len(points))
-        lats = np.zeros(len(points))
-        for k, p in enumerate(points):
-            lons[k] = p[0]
-            lats[k] = np.arctan2(np.cos(p[1]), (1-f)**2*np.sin(p[1]))
-        super(ReuterGrid, self).__init__(lons, lats, areas, a, f)
+        super(ReuterGrid, self).__init__(np.concatenate(lons), np.concatenate(lats), np.concatenate(areas), a, f)
 
         self.values = np.empty(self.lons.shape)
         self.epoch = None
@@ -650,6 +661,95 @@ class ReuterGrid(IrregularGrid):
     def copy(self):
         """Deep copy of a ReuterGrid instance."""
         grid = ReuterGrid(self.__level, self.semimajor_axis, self.flattening)
+        grid.values = self.values.copy()
+        grid.epoch = self.epoch
+
+        return grid
+
+
+class GeodesicGrid(IrregularGrid):
+    """
+    Implementation of a Geodesic grid based on the icosahedron.
+    """
+    def __init__(self, level, a=6378137.0, f=298.2572221010**-1):
+
+        ratio = np.pi * 0.5 - np.arccos(
+            (np.cos(72 * np.pi/180) + np.cos(72 * np.pi/180) * np.cos(72 * np.pi/180)) /
+            (np.sin(72 * np.pi/180) * np.sin(72 * np.pi/180)))
+
+        vertex_lons = np.array([0, 0, 72, 144, 216, 288, 36, 108, 180, 252, 324, 0]) * np.pi/180
+        vertex_lats = np.empty(vertex_lons.size)
+        vertex_lats[0:6] = ratio
+        vertex_lats[6:] = -ratio
+        vertex_lats[0] = 0.5 * np.pi
+        vertex_lats[-1] = - 0.5 * np.pi
+
+        vertices = np.vstack((np.cos(vertex_lons)*np.cos(vertex_lats), np.sin(vertex_lons)*np.cos(vertex_lats),
+                              np.sin(vertex_lats))).T
+
+        points_cartesian = [np.array(p)/np.sqrt(np.sum(np.asarray(p)**2)) for p in vertices]
+
+        triangles = np.array([[0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 5], [0, 5, 1], [2, 1, 6], [3, 2, 7], [4, 3, 8],
+                              [5, 4, 9], [1, 5, 10], [6, 7, 2], [7, 8, 3], [8, 9, 4], [9, 10, 5], [10, 6, 1],
+                              [11, 7, 6], [11, 8, 7], [11, 9, 8], [11, 10, 9], [11, 6, 10]])
+
+        edges = np.array([[0, 1], [0, 2], [0, 3], [0, 4], [0, 5], [1, 2], [2, 3], [3, 4], [4, 5], [5, 1],
+                          [1, 6], [2, 7], [3, 8], [4, 9], [5, 10], [6, 2], [7, 3], [8, 4], [9, 5], [10, 1],
+                          [6, 7], [7, 8], [8, 9], [9, 10], [10, 6], [11, 6], [11, 7], [11, 8], [11, 9], [11, 10]])
+
+        def normalize(v):
+            return v / np.sqrt(np.sum(v**2))
+
+        def subdivide_edge(p1, p2, level):
+
+            step_angle = np.arccos(np.inner(p1, p2))/(level + 1)
+            vec = normalize(np.cross(np.cross(p1, p2), p1))
+
+            return [np.cos((i + 1) * step_angle) * p1 + np.sin((i + 1)*step_angle) * vec for i in range(level)]
+
+        def subdivide_triangle(p1, p2, p3, level):
+
+            edge12 = subdivide_edge(p1, p2, level)
+            edge23 = subdivide_edge(p2, p3, level)
+            edge31 = subdivide_edge(p3, p1, level)
+
+            points = []
+            for i in range(1, level):
+                for k in range(i):
+
+                    e13 = np.cross(edge12[i], edge31[level-1-i])
+                    e12 = np.cross(edge12[i-1-k], edge23[level-i+k])
+                    e23 = np.cross(edge23[k], edge31[level-1-k])
+
+                    v1 = np.cross(e13, e12)
+                    v2 = np.cross(e23, e13)
+                    v3 = np.cross(e23, e12)
+
+                    points.append(-normalize(normalize(v1) + normalize(v2) + normalize(v3)))
+
+            return points
+
+        for k in range(edges.shape[0]):
+            points_cartesian.extend(subdivide_edge(points_cartesian[edges[k, 0]], points_cartesian[edges[k, 1]], level))
+
+        for k in range(triangles.shape[0]):
+            points_cartesian.extend(subdivide_triangle(points_cartesian[triangles[k, 0]],
+                                                       points_cartesian[triangles[k, 1]],
+                                                       points_cartesian[triangles[k, 2]], level))
+
+        xyz = np.asarray(points_cartesian)
+        lons = np.arctan2(xyz[:, 1], xyz[:, 0])
+        lats = np.arctan2(xyz[:, 2], (1 - f) ** 2 * np.sqrt(1 - xyz[:, 2] ** 2))
+
+        super(GeodesicGrid, self).__init__(lons, lats, np.full(lats.size, 4 * np.pi / lats.size), a, f)
+
+        self.values = np.empty(self.lons.shape)
+        self.epoch = None
+        self.__level = level
+
+    def copy(self):
+        """Deep copy of a GeodesicGrid instance."""
+        grid = GeodesicGrid(self.__level, self.semimajor_axis, self.flattening)
         grid.values = self.values.copy()
         grid.epoch = self.epoch
 
