@@ -1,9 +1,24 @@
 import matplotlib.pyplot as plt
+import matplotlib.patches
 import grates.utilities
+import grates.grid
 import grates.gravityfield
 import cartopy as ctp
 import numpy as np
 
+
+def __cell2patch(cell):
+
+    if isinstance(cell, grates.grid.RectangularSurfaceElement):
+        return matplotlib.patches.Rectangle((cell.x*180/np.pi, cell.y*180/np.pi),
+                                            cell.width*180/np.pi, cell.height*180/np.pi)
+    if isinstance(cell, grates.grid.PolygonSurfaceElement):
+        return matplotlib.patches.Polygon(cell.xy*180/np.pi)
+
+
+def create_surface_patches(grid):
+
+    return [__cell2patch(cell) for cell in grid.voronoi_cells()]
 
 
 def preview_gravityfield(x, vmin=-25, vmax=25, min_degree=2, max_degree=None):

@@ -13,6 +13,55 @@ import grates.gravityfield
 from scipy.special import roots_legendre
 
 
+class SurfaceElement(metaclass=abc.ABCMeta):
+    """
+    Base interface for different shapes of surface tiles.
+    """
+    pass
+
+
+class RectangularSurfaceElement(SurfaceElement):
+    """
+    Rectangular surface element defined by lower left corner coordinates, width and height.
+
+    Parameters
+    ----------
+    x : float
+        longitude of lower left point in radians
+    y : float
+        latitude of lower left point in radians
+    width : float
+        width in radians
+    height : float
+        width in radians
+    """
+    __slots__ = ['x', 'y', 'width', 'height']
+
+    def __init__(self, x, y, width, height):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+
+
+class PolygonSurfaceElement(SurfaceElement):
+    """
+    Surface element of arbitrary shape, defined by a sequence of grid points.
+
+    Parameters
+    ----------
+    x : ndarray(vertex_count)
+        longitude of polygon vertices in radians
+    y : ndarray(vertex_count
+        latitude of polygon vertices in radians
+    """
+    __slots__ = ['xy']
+
+    def __init__(self, x, y):
+
+        self.xy = np.vstack((x, y)).T
+
+
 class Grid(metaclass=abc.ABCMeta):
     """
     Base interface for point collections.
