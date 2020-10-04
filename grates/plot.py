@@ -1,10 +1,54 @@
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.patches
+import matplotlib.collections
 import grates.utilities
 import grates.grid
 import grates.gravityfield
 import cartopy as ctp
 import numpy as np
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+
+class StyleSheet:
+
+    def __init__(self, name):
+
+        font_size_small = 12
+        font_size_medium = 14
+        font_size_large = 16
+        linewidth = 2
+        figure_size = (12 / 2.54, 6 / 2.54)
+
+        style_dict = {}
+        if name == 'presentation_calibri':
+            font_size_small = 12
+            font_size_medium = 14
+            font_size_large = 16
+
+            style_dict['font.family'] = 'Calibri'
+            style_dict['figure.dpi'] = 600
+
+        elif name == 'presentation_arial':
+            font_size_small = 10
+            font_size_medium = 12
+            font_size_large = 14
+
+            style_dict['font.family'] = 'Arial'
+            style_dict['figure.dpi'] = 600
+
+        style_dict.update(**{'font.size': font_size_small, 'axes.titlesize': font_size_large,
+                      'axes.labelsize': font_size_medium, 'figure.titlesize': font_size_large,
+                      'xtick.labelsize': font_size_small, 'legend.fontsize': font_size_small,
+                      'lines.linewidth': linewidth, 'figure.figsize': figure_size})
+
+        self.__context = mpl.rc_context(style_dict)
+
+    def __enter__(self):
+        self.__context.__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.__context.__exit__(exc_type, exc_val, exc_tb)
 
 
 def __cell2patch(cell):
@@ -16,9 +60,28 @@ def __cell2patch(cell):
         return matplotlib.patches.Polygon(cell.xy*180/np.pi)
 
 
-def create_surface_patches(grid):
+def voronoi_bin(lon, lat, C=None, ax=None, grid=grates.grid.GeodesicGrid(25), mincnt=0, reduce_C_function=np.mean,
+                cmap='viridis', alpha=1, vmin=None, vmax=None):
 
-    return [__cell2patch(cell) for cell in grid.voronoi_cells()]
+    idx = grid.nn_index(lon, lat)
+    patches = [__cell2patch(cell) for cell in grid.voronoi_cells()]
+
+    if C is None:
+        values = np.array([len(points) for points in idx], dtype=float)
+        values[values < mincnt] = np.nan
+    else:
+        values = np.full(len(idx), np.nan)
+        for k, points in enumerate(idx):
+            if len(points) > mincnt:
+                values[k] = reduce_C_function(C[points])
+
+    p = matplotlib.collections.PatchCollection(patches, alpha=alpha, cmap=cmap, transform=ctp.crs.PlateCarree())
+    if ax is None:
+        ax = plt.gca()
+    p.set_array(values)
+    ax.add_collection(p)
+    p.set_clim(vmin, vmax)
+    return p
 
 
 def preview_gravityfield(x, vmin=-25, vmax=25, min_degree=2, max_degree=None):
@@ -36,6 +99,24 @@ def preview_gravityfield(x, vmin=-25, vmax=25, min_degree=2, max_degree=None):
     ax.coastlines()
     plt.show()
 
+
+def colorbar(image, ax=None, **kwargs):
+
+    if ax is None:
+        ax = plt.gca()
+
+    cbaxes = inset_axes(ax,
+                       width="75%",  # width = 5% of parent_bbox width
+                       height="5%",  # height : 50%
+                       loc='lower center',
+                       bbox_to_anchor=(0, -0.1, 1, 1),
+                       bbox_transform=ax.transAxes,
+                       borderpad=0,
+                       )
+
+    cbar = ax.figure.colorbar(image, ax=ax, cax=cbaxes, orientation='horizontal', **kwargs)
+
+    return cbar
 
 
 class GlobalFigure:
