@@ -52,12 +52,26 @@ class StyleContext:
 
 
 def __cell2patch(cell):
+    """
+    Convert surface elements to matplotlib patches.
 
+    Parameters
+    ----------
+    cell : grates.grid.SurfaceElement
+        instance of SurfaceElement subclass
+
+    Returns
+    -------
+    patch : matplotlib.patches.Patch
+        corresponding Patch subclass
+    """
     if isinstance(cell, grates.grid.RectangularSurfaceElement):
         return matplotlib.patches.Rectangle((cell.x*180/np.pi, cell.y*180/np.pi),
                                             cell.width*180/np.pi, cell.height*180/np.pi)
-    if isinstance(cell, grates.grid.PolygonSurfaceElement):
+    elif isinstance(cell, grates.grid.PolygonSurfaceElement):
         return matplotlib.patches.Polygon(cell.xy*180/np.pi)
+    else:
+        raise ValueError('no known conversion for type ' + str(type(cell)) + '.')
 
 
 def voronoi_bin(lon, lat, C=None, ax=None, grid=grates.grid.GeodesicGrid(25), mincnt=0, reduce_C_function=np.mean,
