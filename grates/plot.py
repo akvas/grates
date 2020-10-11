@@ -120,7 +120,7 @@ def voronoi_bin(lon, lat, C=None, ax=None, grid=grates.grid.GeodesicGrid(25), mi
             if len(points) > mincnt:
                 values[k] = reduce_C_function(C[points])
 
-    p = matplotlib.collections.PatchCollection(patches, alpha=alpha, cmap=cmap, transform=ctp.crs.PlateCarree())
+    p = matplotlib.collections.PatchCollection(patches, transform=ctp.crs.PlateCarree(), **kwargs)
     if ax is None:
         ax = plt.gca()
     p.set_array(values)
