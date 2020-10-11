@@ -11,6 +11,56 @@ import grates.utilities
 import grates.kernel
 import grates.gravityfield
 from scipy.special import roots_legendre
+import scipy.spatial
+
+
+class SurfaceElement(metaclass=abc.ABCMeta):
+    """
+    Base interface for different shapes of surface tiles.
+    """
+    pass
+
+
+class RectangularSurfaceElement(SurfaceElement):
+    """
+    Rectangular surface element defined by lower left corner coordinates, width and height.
+
+    Parameters
+    ----------
+    x : float
+        longitude of lower left point in radians
+    y : float
+        latitude of lower left point in radians
+    width : float
+        width in radians
+    height : float
+        width in radians
+    """
+    __slots__ = ['x', 'y', 'width', 'height']
+
+    def __init__(self, x, y, width, height):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+
+
+class PolygonSurfaceElement(SurfaceElement):
+    """
+    Surface element of arbitrary shape, defined by a sequence of grid points.
+
+    Parameters
+    ----------
+    x : ndarray(vertex_count)
+        longitude of polygon vertices in radians
+    y : ndarray(vertex_count
+        latitude of polygon vertices in radians
+    """
+    __slots__ = ['xy']
+
+    def __init__(self, x, y):
+
+        self.xy = np.vstack((x, y)).T
 
 
 class Grid(metaclass=abc.ABCMeta):
@@ -45,6 +95,28 @@ class Grid(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def point_count(self):
         pass
+
+    @abc.abstractmethod
+    def voronoi_cells(self):
+        pass
+
+    def cartesian_coordinates(self):
+        """
+        Compute and return the grid points in cartesian coordinates.
+
+        Returns
+        -------
+        cartesian_coordinates : ndarray(point_count, 3)
+            ndarray containing the cartesian coordinates of the grid points (x, y, z).
+        """
+        lons, lats = self.longitude(), self.latitude()
+
+        e2 = 2 * self.flattening - self.flattening**2
+        radius_of_curvature = self.semimajor_axis / np.sqrt(1 - e2 * np.sin(lats)**2)
+
+        return np.vstack((radius_of_curvature * np.cos(lats) * np.cos(lons),
+                          radius_of_curvature * np.cos(lats) * np.sin(lons),
+                          (1 - e2) * radius_of_curvature * np.sin(lats))).T
 
     def mean(self, mask=None):
         """
@@ -140,6 +212,35 @@ class Grid(metaclass=abc.ABCMeta):
 
         return IrregularGrid(remaining_longitude, remaining_latitude, remaining_areas,
                              self.semimajor_axis, self.flattening)
+
+    def nn_index(self, lon, lat):
+        """
+        Compute the nearest grid point of each point in the sample (lon, lat) and return it as as list of
+        indices for each grid point. The nearest neighbour is computed based on the 3D euclidean distance.
+
+        Parameters
+        ----------
+        lon: ndarray(m,)
+            longitude of sample points in radians
+        lat: ndarray(,m)
+            latitude of sample points in radians
+
+        Returns
+        -------
+        index : list of index arrays
+            indices of sample points for each grid point (index[k] contains the indices of all points in the sample
+            to which the k-th point is the nearest neighbour)
+        """
+        tree = scipy.spatial.cKDTree(self.cartesian_coordinates())
+        sample_coordinates = IrregularGrid(lon, lat, a=self.semimajor_axis, f=self.flattening).cartesian_coordinates()
+
+        _, index_3d = tree.query(sample_coordinates[::1, :])
+
+        point_index = [None] * self.point_count()
+        for k in range(len(point_index)):
+            point_index[k] = np.nonzero(k == index_3d)[0]
+
+        return point_index
 
 
 class RegularGrid(Grid):
@@ -293,9 +394,35 @@ class RegularGrid(Grid):
 
         return A.T
 
+    def voronoi_cells(self):
+        """
+        Compute the global Voronoi diagram of the grid points. For regular grids, the Voronoi cells are assumed
+        to be rectangles centered at each grid point.
+
+        Returns
+        -------
+        cells : list of RectangularSurfaceElement instances
+            Voronoi cell for each grid point as RectangularSurfaceElement instance
+        """
+        dlon = np.diff(self.lons)
+        lon_edges = np.concatenate(([-np.pi], self.lons[0:-1] + 0.5 * dlon, [np.pi]))
+
+        dlat = np.diff(self.lats)
+        lat_edges = np.concatenate(([0.5 * np.pi], self.lats[0:-1] + 0.5 * dlat, [-0.5 * np.pi]))
+
+        cells = []
+        for l in range(self.lats.size):
+            for k in range(self.lons.size):
+                cells.append(RectangularSurfaceElement(lon_edges[k], lat_edges[l+1], lon_edges[k + 1] - lon_edges[k],
+                                                       lat_edges[l] - lat_edges[l + 1]))
+        return cells
+
 
 class IrregularGrid(Grid):
-
+    """
+    Base class for irregular point distributions on the ellipsoid. The points of an irregular grid are characterized
+    by longitude/latitude pairs which cannot be represented by just parallels and meridians.
+    """
     def __init__(self, longitude, latitude, area=None, a=6378137.0, f=298.2572221010**-1):
 
         self.lons = longitude
@@ -389,6 +516,45 @@ class IrregularGrid(Grid):
             Ynm[:, row_idx, col_idx] *= (continuation * grid_kernel.coefficient(n, r, colat))[:, np.newaxis]
 
         return grates.utilities.ravel_coefficients(Ynm, min_degree, max_degree).T
+
+    def voronoi_cells(self):
+        """
+        Compute the global spherical Voronoi diagram of the grid points. Before computing the surface tiles,
+        the grid points are mapped onto the unit sphere. Then, the resulting polygons are projected onto
+        the ellipsoid.
+
+        Returns
+        -------
+        cells : list of SurfaceElement instances
+            Voronoi cell for each grid point as surface element instance
+        """
+        X = self.cartesian_coordinates()
+        norm = np.sqrt(np.sum(X**2, axis=1))
+        X /= norm[:, np.newaxis]
+
+        sv = scipy.spatial.SphericalVoronoi(X, radius=1)
+        vertex_lon = np.arctan2(sv.vertices[:, 1], sv.vertices[:, 0])
+        vertex_lat = np.arctan2(sv.vertices[:, 2], (1-self.flattening)**2 * np.sqrt(1 - sv.vertices[:, 2]**2))
+
+        cells = []
+        for region in sv.regions:
+            points = sv.vertices[region]
+            central_point = np.mean(points, axis=0)
+
+            e = np.cross(central_point, [0, 0, 1])
+            e /= np.sqrt(np.sum(e**2))
+            n = np.cross(e, central_point)
+
+            azimuth = np.arctan2((points@e[:, np.newaxis]).flatten(), (points@n[:, np.newaxis]).flatten())
+            idx = np.argsort(-azimuth)
+
+            lon = vertex_lon[region]
+            if np.ptp(lon) > np.pi:
+                lon = np.mod(lon, 2 * np.pi)
+            lat = vertex_lat[region]
+
+            cells.append(PolygonSurfaceElement(lon[idx], lat[idx]))
+        return cells
 
 
 class GeographicGrid(RegularGrid):
@@ -492,28 +658,39 @@ class ReuterGrid(IrregularGrid):
 
         dlat = np.pi/level
 
-        points = [(0, np.pi * 0.5)]
-        areas = [2*np.pi * (1 - np.cos(dlat*0.5))]
+        self.__parallels = np.empty(level + 1)
+        self.__longitudes = np.empty(self.__parallels.size, dtype=object)
+
+        self.__parallels[0] = 0.5 * np.pi
+        self.__longitudes[0] = np.zeros(1)
+
         for k in range(1, level):
 
             theta = k * dlat
+            self.__parallels[k] = np.arctan2(np.cos(theta), (1-f)**2*np.sin(theta))
+
             point_count = int(2*np.pi/np.arccos((np.cos(dlat)-np.cos(theta)**2)/(np.sin(theta)**2)))
-            dlon = 2*np.pi/point_count
+            self.__longitudes[k] = np.empty(point_count)
+            for i in range(point_count):
+                self.__longitudes[k][i] = np.mod((i+1.5) * 2*np.pi/point_count+np.pi, 2*np.pi)-np.pi
 
-            points.extend([(np.mod((i+0.5) * 2*np.pi/point_count+np.pi, 2*np.pi)-np.pi, theta)
-                           for i in range(1, point_count + 1)])
-            areas.extend([dlon * 2 * np.sin(dlat*0.5) * np.cos(np.pi * 0.5 - theta)]*point_count)
+        self.__parallels[-1] = -0.5 * np.pi
+        self.__longitudes[-1] = np.zeros(1)
+        self.__areas = np.empty(self.__parallels.size)
+        self.__areas[0] = 2 * np.pi * (1 - np.cos(dlat * 0.5))
+        self.__areas[-1] = 2 * np.pi * (1 - np.cos(dlat * 0.5))
+        for k in range(1, self.__areas.size - 1):
+            self.__areas[k] = 4 * np.pi / self.__longitudes[k].size * np.sin(0.5 * dlat) * np.cos(self.__parallels[k])
 
-        points.append((0, -np.pi * 0.5))
-        areas.append(2 * np.pi * (1 - np.cos(dlat * 0.5)))
+        lons = []
+        lats = []
+        areas = []
+        for k in range(self.__parallels.size):
+            lons.append(self.__longitudes[k])
+            lats.append(np.full(self.__longitudes[k].size, self.__parallels[k]))
+            areas.append(np.full(self.__longitudes[k].size, self.__areas[k]))
 
-        areas = np.asarray(areas)
-        lons = np.zeros(len(points))
-        lats = np.zeros(len(points))
-        for k, p in enumerate(points):
-            lons[k] = p[0]
-            lats[k] = np.arctan2(np.cos(p[1]), (1-f)**2*np.sin(p[1]))
-        super(ReuterGrid, self).__init__(lons, lats, areas, a, f)
+        super(ReuterGrid, self).__init__(np.concatenate(lons), np.concatenate(lats), np.concatenate(areas), a, f)
 
         self.values = np.empty(self.lons.shape)
         self.epoch = None
@@ -522,6 +699,95 @@ class ReuterGrid(IrregularGrid):
     def copy(self):
         """Deep copy of a ReuterGrid instance."""
         grid = ReuterGrid(self.__level, self.semimajor_axis, self.flattening)
+        grid.values = self.values.copy()
+        grid.epoch = self.epoch
+
+        return grid
+
+
+class GeodesicGrid(IrregularGrid):
+    """
+    Implementation of a Geodesic grid based on the icosahedron.
+    """
+    def __init__(self, level, a=6378137.0, f=298.2572221010**-1):
+
+        ratio = np.pi * 0.5 - np.arccos(
+            (np.cos(72 * np.pi/180) + np.cos(72 * np.pi/180) * np.cos(72 * np.pi/180)) /
+            (np.sin(72 * np.pi/180) * np.sin(72 * np.pi/180)))
+
+        vertex_lons = np.array([0, 0, 72, 144, 216, 288, 36, 108, 180, 252, 324, 0]) * np.pi/180
+        vertex_lats = np.empty(vertex_lons.size)
+        vertex_lats[0:6] = ratio
+        vertex_lats[6:] = -ratio
+        vertex_lats[0] = 0.5 * np.pi
+        vertex_lats[-1] = - 0.5 * np.pi
+
+        vertices = np.vstack((np.cos(vertex_lons)*np.cos(vertex_lats), np.sin(vertex_lons)*np.cos(vertex_lats),
+                              np.sin(vertex_lats))).T
+
+        points_cartesian = [np.array(p)/np.sqrt(np.sum(np.asarray(p)**2)) for p in vertices]
+
+        triangles = np.array([[0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 5], [0, 5, 1], [2, 1, 6], [3, 2, 7], [4, 3, 8],
+                              [5, 4, 9], [1, 5, 10], [6, 7, 2], [7, 8, 3], [8, 9, 4], [9, 10, 5], [10, 6, 1],
+                              [11, 7, 6], [11, 8, 7], [11, 9, 8], [11, 10, 9], [11, 6, 10]])
+
+        edges = np.array([[0, 1], [0, 2], [0, 3], [0, 4], [0, 5], [1, 2], [2, 3], [3, 4], [4, 5], [5, 1],
+                          [1, 6], [2, 7], [3, 8], [4, 9], [5, 10], [6, 2], [7, 3], [8, 4], [9, 5], [10, 1],
+                          [6, 7], [7, 8], [8, 9], [9, 10], [10, 6], [11, 6], [11, 7], [11, 8], [11, 9], [11, 10]])
+
+        def normalize(v):
+            return v / np.sqrt(np.sum(v**2))
+
+        def subdivide_edge(p1, p2, level):
+
+            step_angle = np.arccos(np.inner(p1, p2))/(level + 1)
+            vec = normalize(np.cross(np.cross(p1, p2), p1))
+
+            return [np.cos((i + 1) * step_angle) * p1 + np.sin((i + 1)*step_angle) * vec for i in range(level)]
+
+        def subdivide_triangle(p1, p2, p3, level):
+
+            edge12 = subdivide_edge(p1, p2, level)
+            edge23 = subdivide_edge(p2, p3, level)
+            edge31 = subdivide_edge(p3, p1, level)
+
+            points = []
+            for i in range(1, level):
+                for k in range(i):
+
+                    e13 = np.cross(edge12[i], edge31[level-1-i])
+                    e12 = np.cross(edge12[i-1-k], edge23[level-i+k])
+                    e23 = np.cross(edge23[k], edge31[level-1-k])
+
+                    v1 = np.cross(e13, e12)
+                    v2 = np.cross(e23, e13)
+                    v3 = np.cross(e23, e12)
+
+                    points.append(-normalize(normalize(v1) + normalize(v2) + normalize(v3)))
+
+            return points
+
+        for k in range(edges.shape[0]):
+            points_cartesian.extend(subdivide_edge(points_cartesian[edges[k, 0]], points_cartesian[edges[k, 1]], level))
+
+        for k in range(triangles.shape[0]):
+            points_cartesian.extend(subdivide_triangle(points_cartesian[triangles[k, 0]],
+                                                       points_cartesian[triangles[k, 1]],
+                                                       points_cartesian[triangles[k, 2]], level))
+
+        xyz = np.asarray(points_cartesian)
+        lons = np.arctan2(xyz[:, 1], xyz[:, 0])
+        lats = np.arctan2(xyz[:, 2], (1 - f) ** 2 * np.sqrt(1 - xyz[:, 2] ** 2))
+
+        super(GeodesicGrid, self).__init__(lons, lats, np.full(lats.size, 4 * np.pi / lats.size), a, f)
+
+        self.values = np.empty(self.lons.shape)
+        self.epoch = None
+        self.__level = level
+
+    def copy(self):
+        """Deep copy of a GeodesicGrid instance."""
+        grid = GeodesicGrid(self.__level, self.semimajor_axis, self.flattening)
         grid.values = self.values.copy()
         grid.epoch = self.epoch
 
