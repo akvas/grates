@@ -193,30 +193,31 @@ def vertical_colorbar(mappable, ax=None, width=0.1, height=1, **kwargs):
     return cbar
 
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+def set_axes_width(ax=None, width=None):
+    """
+    Changes figure width so that ax is exactly width wide.
 
-        width = self.__axes.figure.subplotpars.right - self.__axes.figure.subplotpars.left
-        height = self.__axes.figure.subplotpars.top - self.__axes.figure.subplotpars.bottom
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        axes to scale, if None current axes will be used
+    width : float
+        axes width in figure units
 
-        aspect_ratio = width / height
+    """
+    if ax is None:
+        ax = plt.gca()
 
-        if self.__height is None:
-            self.__height = self.__width / aspect_ratio
+    if width is None:
+        return
 
-        fw = self.__width / 2.54 / width
-        fh = self.__height / 2.54 / height
+    aw = ax.figure.subplotpars.right - ax.figure.subplotpars.left
+    ah = ax.figure.subplotpars.top - ax.figure.subplotpars.bottom
 
-        self.__axes.figure.set_size_inches(fw, fh)
-        self.__figure.canvas.draw()
+    aspect_ratio = aw / ah
 
-        if self.__cblabel:
-            cbaxes = self.__figure.add_axes(
-                [self.__axes.figure.subplotpars.left + width * 0.125, self.__axes.figure.subplotpars.bottom + 0.15,
-                 width * 0.75, 0.025])
-            self.__cbar = self.__figure.colorbar(self.__im, label=self.__cblabel, ax=self.__axes, cax=cbaxes,
-                                                 orientation='horizontal', **self.__cbargs)
+    fw = width / aw
+    fh = width / aspect_ratio / ah
 
-        if self.__file_name is not None:
-            self.__figure.savefig(self.__file_name, dpi=self.__dpi, transparent=True, bbox_inches='tight')
-        else:
-           plt.show()
+    ax.figure.set_size_inches(fw, fh)
+    ax.figure.canvas.draw()
