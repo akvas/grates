@@ -75,8 +75,39 @@ def __cell2patch(cell):
 
 
 def voronoi_bin(lon, lat, C=None, ax=None, grid=grates.grid.GeodesicGrid(25), mincnt=0, reduce_C_function=np.mean,
-                cmap='viridis', alpha=1, vmin=None, vmax=None):
+                vmin=None, vmax=None, **kwargs):
+    """
+    Make a 2D plot of points lon, lat which are binned into the Voronoi cells of grid.
 
+    Parameters
+    ----------
+    lon : ndarray(m,)
+        point longitude in radians
+    lat : ndarray(m,)
+        point latitude in radians
+    C : ndarray(m,)
+        if given these values are accumulated in the bins, otherwise the point count per bin is used
+    ax : matplotlib.axes.Axes
+        axes into which to plot, if None (default) the current axes are used
+    grid : grates.grid.Grid
+        the base grid for the Voronoi diagram into which the points are sorted
+    mincnt : int
+        only draw bins with at least mincnt entries
+    reduce_C_function: callable
+        the function to aggregate the C values for each bin, ignored if C is not given
+    vmin : float
+        lower colorbar limit
+    vmax : float
+        upper colorbar limit
+    **kwargs
+        forwarded to PatchCollection
+
+    Returns
+    -------
+    p : matplotlib.collections.PatchCollection
+        handle of the PatchCollection
+
+    """
     idx = grid.nn_index(lon, lat)
     patches = [__cell2patch(cell) for cell in grid.voronoi_cells()]
 
