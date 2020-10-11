@@ -129,78 +129,69 @@ def voronoi_bin(lon, lat, C=None, ax=None, grid=grates.grid.GeodesicGrid(25), mi
     return p
 
 
-def preview_gravityfield(x, vmin=-25, vmax=25, min_degree=2, max_degree=None):
+def colorbar(mappable, ax=None, width=0.75, height=0.05, **kwargs):
+    """
+    Add a horizontal colorbar to an existing axes.
 
-    array = grates.utilities.unravel_coefficients(x, min_degree, max_degree)
-    gf = grates.gravityfield.PotentialCoefficients()
-    gf.anm = array
+    Parameters
+    ----------
+    mappable : handle
+        the mappable (AxesImage, ContourSet, ...) described by this colorbar
+    ax : matplotlib.axes.Axes
+        parent axes
+    width : float
+        colorbar width (normalized)
+    height : float
+        colorbar height (normalized)
+    kwargs :
+        passed onto matplotlib.figure.Figure.colorbar
 
-    grid = gf.to_grid()
-
-    plt.figure()
-    ax = plt.axes(projection=ctp.crs.Mollweide())
-
-    ax.imshow(grid.values[::-1, :]*100, vmin=vmin, vmax=vmax, cmap='RdBu', transform=ctp.crs.PlateCarree())
-    ax.coastlines()
-    plt.show()
-
-
-def colorbar(image, ax=None, **kwargs):
-
+    Returns
+    -------
+    cbar : Colorbar
+        handle of the created colorbar
+    """
     if ax is None:
         ax = plt.gca()
 
-    cbaxes = inset_axes(ax,
-                       width="75%",  # width = 5% of parent_bbox width
-                       height="5%",  # height : 50%
-                       loc='lower center',
-                       bbox_to_anchor=(0, -0.1, 1, 1),
-                       bbox_transform=ax.transAxes,
-                       borderpad=0,
-                       )
-
-    cbar = ax.figure.colorbar(image, ax=ax, cax=cbaxes, orientation='horizontal', **kwargs)
+    cbaxes = inset_axes(ax, width='{0:f}%'.format(width*100), height='{0:f}%'.format(height*100), loc='lower center',
+                        bbox_to_anchor=(0, -0.1, 1, 1), bbox_transform=ax.transAxes, borderpad=0, )
+    cbar = ax.figure.colorbar(mappable, ax=ax, cax=cbaxes, orientation='horizontal', **kwargs)
 
     return cbar
 
 
-class GlobalFigure:
+def vertical_colorbar(mappable, ax=None, width=0.1, height=1, **kwargs):
+    """
+    Add a vertical mappable to an existing axes.
 
+    Parameters
+    ----------
+    mappable : handle
+        the mappable (AxesImage, ContourSet, ...) described by this colorbar
+    ax : matplotlib.axes.Axes
+        parent axes
+    width : float
+        colorbar width (normalized)
+    height : float
+        colorbar height (normalized)
+    kwargs :
+        passed onto matplotlib.figure.Figure.colorbar
 
-    def __init__(self, file_name=None, width=12, height=None):
+    Returns
+    -------
+    cbar : Colorbar
+        handle of the created colorbar
+    """
+    if ax is None:
+        ax = plt.gca()
 
-        self.__width = width
-        self.__height = height
+    cbaxes = inset_axes(ax, width='{0:f}%'.format(width*100), height='{0:f}%'.format(height*100), loc='center left',
+                        bbox_to_anchor=(1.05, 0, 1, 1), bbox_transform=ax.transAxes, borderpad=0, )
+    cbar = ax.figure.colorbar(mappable, ax=ax, cax=cbaxes, orientation='vertical', **kwargs)
 
-        self.__figure = plt.figure()
+    return cbar
 
-        self.__axes = plt.axes(projection=ctp.crs.Mollweide())
-        self.__axes.set_global()
-        self.__dpi = 300
-        self.__file_name = file_name
-
-        self.__cblabel = None
-
-    def imshow(self, values, **kwargs):
-
-        self.__im = self.__axes.imshow(values[::-1, :], transform=ctp.crs.PlateCarree(), **kwargs)
-
-    def plot(self, x, y, **kwargs):
-
-        self.__axes.plot(x, y, transform=ctp.crs.Geodetic(), **kwargs)
-
-    def coastlines(self, **kwargs):
-
-        self.__axes.coastlines(**kwargs)
-
-    def colorbar(self, label, **kwargs):
-
-        self.__cblabel = label
-        self.__cbargs = kwargs
-
-    def __enter__(self):
-
-        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
 
