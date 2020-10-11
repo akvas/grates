@@ -11,7 +11,7 @@ import grates.kernel
 import grates.utilities
 
 
-def degree_indices(n):
+def degree_indices(n, max_order=None):
     """
     Return array indices for all coeffcients of degree n.
 
@@ -31,8 +31,10 @@ def degree_indices(n):
         column indices of all coefficients of degree n
 
     """
-    rows = np.concatenate((np.full(n + 1, n, dtype=int), np.arange(n, dtype=int)))
-    columns = np.concatenate((np.arange(n + 1, dtype=int), np.full(n, n, dtype=int)))
+    count = min(n, max_order) if max_order is not None else n
+
+    rows = np.concatenate((np.full(count + 1, n, dtype=int), np.arange(count, dtype=int)))
+    columns = np.concatenate((np.arange(count + 1, dtype=int), np.full(count, n, dtype=int)))
 
     return rows, columns
 
@@ -223,7 +225,7 @@ class PotentialCoefficients:
 
         return self*(1.0/other)
 
-    def degree_amplitudes(self, kernel='potential'):
+    def degree_amplitudes(self, max_order=None, kernel='potential'):
         """
         Compute degree amplitudes from potential coefficients.
 
@@ -231,6 +233,8 @@ class PotentialCoefficients:
         ----------
         kernel : string
             name of kernel for the degree amplitude computation
+        max_order : int
+            include only coefficients up to max_order (default: include all coefficients)
 
         Returns
         -------
@@ -245,7 +249,7 @@ class PotentialCoefficients:
         kernel = grates.kernel.get_kernel(kernel)
 
         for n in degrees:
-            amplitudes[n] = np.sum(self.anm[grates.gravityfield.degree_indices(n)] ** 2) * \
+            amplitudes[n] = np.sum(self.anm[grates.gravityfield.degree_indices(n, max_order=max_order)] ** 2) * \
                             kernel.inverse_coefficient(n) ** 2
 
         return degrees, np.sqrt(amplitudes)*self.GM/self.R
