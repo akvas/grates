@@ -96,6 +96,10 @@ class Grid(metaclass=abc.ABCMeta):
     def point_count(self):
         pass
 
+    @abc.abstractmethod
+    def voronoi_cells(self):
+        pass
+
     def cartesian_coordinates(self):
         """
         Compute and return the grid points in cartesian coordinates.
