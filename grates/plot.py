@@ -10,7 +10,7 @@ import numpy as np
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 
-class StyleSheet:
+class StyleContext:
 
     def __init__(self, name):
 
