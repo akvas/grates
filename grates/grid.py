@@ -534,14 +534,20 @@ class IrregularGrid(Grid):
 
         cells = []
         for region in sv.regions:
+            points = sv.vertices[region]
+            central_point = np.mean(points, axis=0)
+
+            e = np.cross(central_point, [0, 0, 1])
+            e /= np.sqrt(np.sum(e**2))
+            n = np.cross(e, central_point)
+
+            azimuth = np.arctan2((points@e[:, np.newaxis]).flatten(), (points@n[:, np.newaxis]).flatten())
+            idx = np.argsort(-azimuth)
+
             lon = vertex_lon[region]
             if np.ptp(lon) > np.pi:
                 lon = np.mod(lon, 2 * np.pi)
-
             lat = vertex_lat[region]
-
-            azimuth = np.arctan2(lat - np.mean(lat), lon - np.mean(lon))
-            idx = np.argsort(-azimuth)
 
             cells.append(PolygonSurfaceElement(lon[idx], lat[idx]))
         return cells
