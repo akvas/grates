@@ -955,6 +955,82 @@ def winding_number(polygon, x, y):
     return wn != 0
 
 
+def spherical_pip(polygon, lon, lat, a=6378137.0, f=298.2572221010**-1):
+    """
+    Point-in-polygon test for geographic coordinates. Both polygon vertices and test points are projected onto the
+    unit sphere before evaluation. Polygon edges are treated as great circle segments.
+
+    The algorithm computes great circle intersections between the polygon edges and great circle segments from
+    a point known to be outside of the polygon to the evaluation points. We chose the antipode of the (cartesian)
+    barycentrum of the polygon vertices to be outside the polygon. Since "inside" and "outside" are not uniquely defined
+    on the sphere, this implicitly requires that polygons are confined to one hemisphere (relative to their
+    barycentrum).
+
+    To speed up computation, first all points outside an enclosing spherical cap are discarded.
+
+    Parameters
+    ----------
+    polygon : ndarray(k, 2)
+        two-column ndarray with longitude/latitude pairs in radians defining the polygon
+    lon : ndarray(m,)
+        longitude of points to be tested in radians
+    lat : ndarray(m,)
+        latitude of points to be tested in radians
+    a : float
+        semi-major axis of ellipsoid
+    f : float
+        flattening of ellipsoid
+
+    Returns
+    -------
+    contains : ndarray(m,)
+        boolean array indicating which point is contained in the polygon
+    """
+    cartesian_coords = ellipsoidal2cartesian(polygon[:, 0], polygon[:, 1], h=0, a=a, f=f)
+    cartesian_coords /= np.sqrt(np.sum(cartesian_coords**2, axis=1))[:, np.newaxis]
+
+    antipode = -np.mean(cartesian_coords, axis=0)
+    antipode /= np.sqrt(np.sum(antipode**2))
+
+    spherical_cap = -cartesian_coords @ antipode[:, np.newaxis]
+    min_cos_angle = np.min(spherical_cap, axis=0)
+
+    cartesian_coords = np.append(cartesian_coords,  cartesian_coords[0][np.newaxis, :], axis=0)
+
+    xyz = ellipsoidal2cartesian(lon, lat, h=0, a=a, f=f)
+    xyz /= np.sqrt(np.sum(xyz**2, axis=1))[:, np.newaxis]
+
+    inside_polygon = (-xyz @ antipode[:, np.newaxis]).flatten() >= min_cos_angle
+    p = np.cross(xyz[inside_polygon, :], antipode)
+    xyz_cross_p = np.cross(xyz[inside_polygon, :], p)
+    antipode_cross_p = np.cross(antipode, p)
+
+    crossing_count = np.zeros(p.shape[0], dtype=int)
+    for b0, b1 in zip(cartesian_coords[1:], cartesian_coords[0:-1]):
+        q = np.cross(b0, b1)
+
+        t = np.cross(p, q)
+        norm_t = np.sqrt(np.sum(t**2, axis=1))
+        remaining_points = norm_t > 0
+        if not np.any(remaining_points):
+            continue
+        t[remaining_points, :] /= norm_t[remaining_points, np.newaxis]
+
+        s1 = np.sum(xyz_cross_p * t, axis=1)
+        s2 = np.sum(antipode_cross_p * t, axis=1)
+        s3 = np.sum(np.cross(b0, q) * t, axis=1)
+        s4 = np.sum(np.cross(b1, q) * t, axis=1)
+
+        is_crossing = np.logical_or((np.sign(-s1)+np.sign(s2)+np.sign(-s3)+np.sign(s4)) == -4,
+                                    (np.sign(-s1)+np.sign(s2)+np.sign(-s3)+np.sign(s4)) == 4)
+        crossing_count[is_crossing] += 1
+
+    mask = inside_polygon.copy()
+    mask[inside_polygon] = np.mod(crossing_count, 2).astype(bool)
+
+    return mask
+
+
 def spherical_distance(lon1, lat1, lon2, lat2, r=6378136.3):
     """
     Compute the spherical distance between points (lon1, lat1) and (lon2, lat2) on a sphere with
