@@ -109,14 +109,8 @@ class Grid(metaclass=abc.ABCMeta):
         cartesian_coordinates : ndarray(point_count, 3)
             ndarray containing the cartesian coordinates of the grid points (x, y, z).
         """
-        lons, lats = self.longitude(), self.latitude()
-
-        e2 = 2 * self.flattening - self.flattening**2
-        radius_of_curvature = self.semimajor_axis / np.sqrt(1 - e2 * np.sin(lats)**2)
-
-        return np.vstack((radius_of_curvature * np.cos(lats) * np.cos(lons),
-                          radius_of_curvature * np.cos(lats) * np.sin(lons),
-                          (1 - e2) * radius_of_curvature * np.sin(lats))).T
+        return ellipsoidal2cartesian(self.longitude(), self.latitude(), h=0, a=self.semimajor_axis(),
+                                     f=self.flattening())
 
     def mean(self, mask=None):
         """
@@ -1038,3 +1032,33 @@ def ellipsoidal_distance(lon1, lat1, lon2, lat2, a=6378137.0, f=298.2572221010**
 
     sigma[L] -= 0.5 * f * (X + Y)
     return a * sigma
+
+
+def ellipsoidal2cartesian(lon, lat, h=0, a=6378137.0, f=298.2572221010**-1):
+    """
+    Compute 3D cartesian coordinates from ellipsoidal (geographic) longitude, latitude and height.
+    
+    Parameters
+    ----------
+    lon : float, ndarray(m,)
+        geographic longitude in radians
+    lat : float, ndarray(m,)
+        geographic latitude in radians
+    h : float, ndarray(m,)
+        ellipsoidal height in meters (default: 0)
+    a : float
+        semi-major axis of ellipsoid in meters
+    f : float
+        flattening of ellipsoid
+
+    Returns
+    -------
+    xyz : ndarray(m,3(
+        3D cartesian coordinages
+    """
+    e2 = 2 * f - f ** 2
+    radius_of_curvature = a / np.sqrt(1 - e2 * np.sin(lat) ** 2)
+
+    return np.vstack(((radius_of_curvature + h) * np.cos(lat) * np.cos(lon),
+                      (radius_of_curvature + h) * np.cos(lat) * np.sin(lon),
+                      ((1 - e2) * radius_of_curvature + h) * np.sin(lat))).T
