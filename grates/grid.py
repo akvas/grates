@@ -857,7 +857,7 @@ class GreatCircleSegment(IrregularGrid):
 class Basin:
     """
     Simple class representation of an area enclosed by a polygon boundary, potentially with holes. No sanity checking
-    for potential geometry errors is performed.
+    for potential geometry errors is performed. Polygon edges are treated as great circle segments.
 
     Parameters
     ----------
@@ -874,7 +874,7 @@ class Basin:
 
     def bounding_box(self):
         """
-        Returns the bound box (min_lon, min_lat, max_lon, max_lat) of the basing.
+        Returns the bound box (min_lon, min_lat, max_lon, max_lat) of the basin.
 
         Returns
         -------
@@ -892,7 +892,7 @@ class Basin:
 
         return np.min(lons), np.min(lats), np.max(lons), np.max(lats)
 
-    def contains_points(self, lon, lat):
+    def contains_points(self, lon, lat, buffer=None):
         """
         Method to check whether points are within the basin bounds.
 
@@ -902,6 +902,8 @@ class Basin:
             longitude of points to be tested (should be given in radians)
         lat : float, ndarray(m,), ndarray(m,n)
             latitude of points to be tested (should be given in radians)
+        buffer : float
+            buffer around basin polygons in meters (default: no buffer)
 
         Returns
         -------
@@ -911,12 +913,17 @@ class Basin:
         lon = np.atleast_1d(lon)
         lat = np.atleast_1d(lat)
 
-        wn = np.zeros(lon.shape if lat.size == 1 else lat.shape, dtype=int)
+        is_inside = np.zeros(lon.shape if lat.size == 1 else lat.shape, dtype=bool)
 
+        if buffer is not None:
+            for polygon in self.__polygons:
+                is_inside = np.logical_or(is_inside, spherical_pib(polygon, lon, lat, buffer))
+
+        count = np.zeros(is_inside.shape, dtype=int)
         for polygon in self.__polygons:
-            wn += winding_number(polygon, lon, lat)
+            count += spherical_pip(polygon, lon, lat)
 
-        return np.mod(wn, 2).astype(bool)
+        return np.logical_or(np.mod(count, 2).astype(bool), is_inside)
 
 
 def winding_number(polygon, x, y):
@@ -1029,6 +1036,72 @@ def spherical_pip(polygon, lon, lat, a=6378137.0, f=298.2572221010**-1):
     mask[inside_polygon] = np.mod(crossing_count, 2).astype(bool)
 
     return mask
+
+
+def spherical_pib(polygon, lon, lat, buffer, a=6378137.0, f=298.2572221010**-1):
+    """
+    Tests whether the points lon/lat are within a certain distance of the polygon edges. Distances are computed
+    on the sphere.
+
+    Parameters
+    ---------
+    polygon : ndarray(k, 2)
+        two-column ndarray with longitude/latitude pairs in radians defining the polygon
+    lon : ndarray(m,)
+        longitude of points to be tested in radians
+    lat : ndarray(m,)
+        latitude of points to be tested in radians
+    buffer : float
+        buffer around the polygon edges in meters
+    a : float
+        semi-major axis of ellipsoid
+    f : float
+        flattening of ellipsoid
+    """
+    cartesian_coords = ellipsoidal2cartesian(polygon[:, 0], polygon[:, 1], h=0, a=a, f=f)
+    cartesian_coords /= np.sqrt(np.sum(cartesian_coords ** 2, axis=1))[:, np.newaxis]
+
+    antipode = -np.mean(cartesian_coords, axis=0)
+    antipode /= np.sqrt(np.sum(antipode ** 2))
+
+    xyz = ellipsoidal2cartesian(lon, lat, h=0, a=a, f=f)
+    xyz /= np.sqrt(np.sum(xyz ** 2, axis=1))[:, np.newaxis]
+
+    spherical_cap = -cartesian_coords @ antipode[:, np.newaxis]
+    min_cos_angle = np.cos(np.arccos(np.min(spherical_cap, axis=0)) + buffer/a)
+
+    inside_cap = (-xyz @ antipode[:, np.newaxis]).flatten() >= min_cos_angle
+    remaining_index = np.where(inside_cap)[0]
+    inside_buffer = np.zeros(xyz.shape[0], dtype=bool)
+
+    cartesian_coords = np.append(cartesian_coords, cartesian_coords[0][np.newaxis, :], axis=0)
+    for b0, b1 in zip(cartesian_coords[1:], cartesian_coords[0:-1]):
+
+        within_vertex = np.cos(buffer / a) <= (xyz[remaining_index, :] @ b0[:, np.newaxis]).flatten()
+        inside_buffer[remaining_index] = within_vertex
+        remaining_index = remaining_index[~within_vertex]
+
+        within_vertex = np.cos(buffer / a) <= (xyz[remaining_index, :] @ b1[:, np.newaxis]).flatten()
+        inside_buffer[remaining_index] = within_vertex
+        remaining_index = remaining_index[~within_vertex]
+
+        n = np.cross(b0, b1)
+        norm_n = np.sqrt(np.sum(n ** 2))
+        if norm_n == 0.0:
+            continue
+        n /= norm_n
+
+        s = xyz[remaining_index, :] @ n[:, np.newaxis]
+        p = xyz[remaining_index, :] - s * n
+        p /= np.sqrt(np.sum(p ** 2, axis=1))[:, np.newaxis]
+
+        within_edge = np.logical_and(np.logical_and(np.inner(np.cross(b0, p), np.cross(b0, b1)) >= 0,
+                                     np.inner(np.cross(b1, p), np.cross(b1, b0)) >= 0),
+                                     np.cos(buffer / a) <= np.sum(p*xyz[remaining_index, :], axis=1))
+        inside_buffer[remaining_index] = within_edge
+        remaining_index = remaining_index[~within_edge]
+
+    return inside_buffer
 
 
 def spherical_distance(lon1, lat1, lon2, lat2, r=6378136.3):
