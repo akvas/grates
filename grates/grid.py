@@ -109,14 +109,8 @@ class Grid(metaclass=abc.ABCMeta):
         cartesian_coordinates : ndarray(point_count, 3)
             ndarray containing the cartesian coordinates of the grid points (x, y, z).
         """
-        lons, lats = self.longitude(), self.latitude()
-
-        e2 = 2 * self.flattening - self.flattening**2
-        radius_of_curvature = self.semimajor_axis / np.sqrt(1 - e2 * np.sin(lats)**2)
-
-        return np.vstack((radius_of_curvature * np.cos(lats) * np.cos(lons),
-                          radius_of_curvature * np.cos(lats) * np.sin(lons),
-                          (1 - e2) * radius_of_curvature * np.sin(lats))).T
+        return ellipsoidal2cartesian(self.longitude(), self.latitude(), h=0, a=self.semimajor_axis(),
+                                     f=self.flattening())
 
     def mean(self, mask=None):
         """
@@ -863,7 +857,7 @@ class GreatCircleSegment(IrregularGrid):
 class Basin:
     """
     Simple class representation of an area enclosed by a polygon boundary, potentially with holes. No sanity checking
-    for potential geometry errors is performed.
+    for potential geometry errors is performed. Polygon edges are treated as great circle segments.
 
     Parameters
     ----------
@@ -880,7 +874,7 @@ class Basin:
 
     def bounding_box(self):
         """
-        Returns the bound box (min_lon, min_lat, max_lon, max_lat) of the basing.
+        Returns the bound box (min_lon, min_lat, max_lon, max_lat) of the basin.
 
         Returns
         -------
@@ -898,7 +892,7 @@ class Basin:
 
         return np.min(lons), np.min(lats), np.max(lons), np.max(lats)
 
-    def contains_points(self, lon, lat):
+    def contains_points(self, lon, lat, buffer=None):
         """
         Method to check whether points are within the basin bounds.
 
@@ -908,6 +902,8 @@ class Basin:
             longitude of points to be tested (should be given in radians)
         lat : float, ndarray(m,), ndarray(m,n)
             latitude of points to be tested (should be given in radians)
+        buffer : float
+            buffer around basin polygons in meters (default: no buffer)
 
         Returns
         -------
@@ -917,12 +913,17 @@ class Basin:
         lon = np.atleast_1d(lon)
         lat = np.atleast_1d(lat)
 
-        wn = np.zeros(lon.shape if lat.size == 1 else lat.shape, dtype=int)
+        is_inside = np.zeros(lon.shape if lat.size == 1 else lat.shape, dtype=bool)
 
+        if buffer is not None:
+            for polygon in self.__polygons:
+                is_inside = np.logical_or(is_inside, spherical_pib(polygon, lon, lat, buffer))
+
+        count = np.zeros(is_inside.shape, dtype=int)
         for polygon in self.__polygons:
-            wn += winding_number(polygon, lon, lat)
+            count += spherical_pip(polygon, lon, lat)
 
-        return np.mod(wn, 2).astype(bool)
+        return np.logical_or(np.mod(count, 2).astype(bool), is_inside)
 
 
 def winding_number(polygon, x, y):
@@ -959,6 +960,148 @@ def winding_number(polygon, x, y):
         wn[np.logical_and(np.logical_and(~l1, ~l2), loc_to_edge < 0)] -= 1
 
     return wn != 0
+
+
+def spherical_pip(polygon, lon, lat, a=6378137.0, f=298.2572221010**-1):
+    """
+    Point-in-polygon test for geographic coordinates. Both polygon vertices and test points are projected onto the
+    unit sphere before evaluation. Polygon edges are treated as great circle segments.
+
+    The algorithm computes great circle intersections between the polygon edges and great circle segments from
+    a point known to be outside of the polygon to the evaluation points. We chose the antipode of the (cartesian)
+    barycentrum of the polygon vertices to be outside the polygon. Since "inside" and "outside" are not uniquely defined
+    on the sphere, this implicitly requires that polygons are confined to one hemisphere (relative to their
+    barycentrum).
+
+    To speed up computation, first all points outside an enclosing spherical cap are discarded.
+
+    Parameters
+    ----------
+    polygon : ndarray(k, 2)
+        two-column ndarray with longitude/latitude pairs in radians defining the polygon
+    lon : ndarray(m,)
+        longitude of points to be tested in radians
+    lat : ndarray(m,)
+        latitude of points to be tested in radians
+    a : float
+        semi-major axis of ellipsoid
+    f : float
+        flattening of ellipsoid
+
+    Returns
+    -------
+    contains : ndarray(m,)
+        boolean array indicating which point is contained in the polygon
+    """
+    cartesian_coords = ellipsoidal2cartesian(polygon[:, 0], polygon[:, 1], h=0, a=a, f=f)
+    cartesian_coords /= np.sqrt(np.sum(cartesian_coords**2, axis=1))[:, np.newaxis]
+
+    antipode = -np.mean(cartesian_coords, axis=0)
+    antipode /= np.sqrt(np.sum(antipode**2))
+
+    spherical_cap = -cartesian_coords @ antipode[:, np.newaxis]
+    min_cos_angle = np.min(spherical_cap, axis=0)
+
+    cartesian_coords = np.append(cartesian_coords,  cartesian_coords[0][np.newaxis, :], axis=0)
+
+    xyz = ellipsoidal2cartesian(lon, lat, h=0, a=a, f=f)
+    xyz /= np.sqrt(np.sum(xyz**2, axis=1))[:, np.newaxis]
+
+    inside_polygon = (-xyz @ antipode[:, np.newaxis]).flatten() >= min_cos_angle
+    p = np.cross(xyz[inside_polygon, :], antipode)
+    xyz_cross_p = np.cross(xyz[inside_polygon, :], p)
+    antipode_cross_p = np.cross(antipode, p)
+
+    crossing_count = np.zeros(p.shape[0], dtype=int)
+    for b0, b1 in zip(cartesian_coords[1:], cartesian_coords[0:-1]):
+        q = np.cross(b0, b1)
+
+        t = np.cross(p, q)
+        norm_t = np.sqrt(np.sum(t**2, axis=1))
+        remaining_points = norm_t > 0
+        if not np.any(remaining_points):
+            continue
+        t[remaining_points, :] /= norm_t[remaining_points, np.newaxis]
+
+        s1 = np.sum(xyz_cross_p * t, axis=1)
+        s2 = np.sum(antipode_cross_p * t, axis=1)
+        s3 = np.sum(np.cross(b0, q) * t, axis=1)
+        s4 = np.sum(np.cross(b1, q) * t, axis=1)
+
+        is_crossing = np.logical_or((np.sign(-s1)+np.sign(s2)+np.sign(-s3)+np.sign(s4)) == -4,
+                                    (np.sign(-s1)+np.sign(s2)+np.sign(-s3)+np.sign(s4)) == 4)
+        crossing_count[is_crossing] += 1
+
+    mask = inside_polygon.copy()
+    mask[inside_polygon] = np.mod(crossing_count, 2).astype(bool)
+
+    return mask
+
+
+def spherical_pib(polygon, lon, lat, buffer, a=6378137.0, f=298.2572221010**-1):
+    """
+    Tests whether the points lon/lat are within a certain distance of the polygon edges. Distances are computed
+    on the sphere.
+
+    Parameters
+    ---------
+    polygon : ndarray(k, 2)
+        two-column ndarray with longitude/latitude pairs in radians defining the polygon
+    lon : ndarray(m,)
+        longitude of points to be tested in radians
+    lat : ndarray(m,)
+        latitude of points to be tested in radians
+    buffer : float
+        buffer around the polygon edges in meters
+    a : float
+        semi-major axis of ellipsoid
+    f : float
+        flattening of ellipsoid
+    """
+    cartesian_coords = ellipsoidal2cartesian(polygon[:, 0], polygon[:, 1], h=0, a=a, f=f)
+    cartesian_coords /= np.sqrt(np.sum(cartesian_coords ** 2, axis=1))[:, np.newaxis]
+
+    antipode = -np.mean(cartesian_coords, axis=0)
+    antipode /= np.sqrt(np.sum(antipode ** 2))
+
+    xyz = ellipsoidal2cartesian(lon, lat, h=0, a=a, f=f)
+    xyz /= np.sqrt(np.sum(xyz ** 2, axis=1))[:, np.newaxis]
+
+    spherical_cap = -cartesian_coords @ antipode[:, np.newaxis]
+    min_cos_angle = np.cos(np.arccos(np.min(spherical_cap, axis=0)) + buffer/a)
+
+    inside_cap = (-xyz @ antipode[:, np.newaxis]).flatten() >= min_cos_angle
+    remaining_index = np.where(inside_cap)[0]
+    inside_buffer = np.zeros(xyz.shape[0], dtype=bool)
+
+    cartesian_coords = np.append(cartesian_coords, cartesian_coords[0][np.newaxis, :], axis=0)
+    for b0, b1 in zip(cartesian_coords[1:], cartesian_coords[0:-1]):
+
+        within_vertex = np.cos(buffer / a) <= (xyz[remaining_index, :] @ b0[:, np.newaxis]).flatten()
+        inside_buffer[remaining_index] = within_vertex
+        remaining_index = remaining_index[~within_vertex]
+
+        within_vertex = np.cos(buffer / a) <= (xyz[remaining_index, :] @ b1[:, np.newaxis]).flatten()
+        inside_buffer[remaining_index] = within_vertex
+        remaining_index = remaining_index[~within_vertex]
+
+        n = np.cross(b0, b1)
+        norm_n = np.sqrt(np.sum(n ** 2))
+        if norm_n == 0.0:
+            continue
+        n /= norm_n
+
+        s = xyz[remaining_index, :] @ n[:, np.newaxis]
+        p = xyz[remaining_index, :] - s * n
+        p /= np.sqrt(np.sum(p ** 2, axis=1))[:, np.newaxis]
+
+        within_edge = np.logical_and(np.logical_and(np.inner(np.cross(b0, p), np.cross(b0, b1)) >= 0,
+                                     np.inner(np.cross(b1, p), np.cross(b1, b0)) >= 0),
+                                     np.cos(buffer / a) <= np.sum(p*xyz[remaining_index, :], axis=1))
+        inside_buffer[remaining_index] = within_edge
+        remaining_index = remaining_index[~within_edge]
+
+    return inside_buffer
 
 
 def spherical_distance(lon1, lat1, lon2, lat2, r=6378136.3):
@@ -1038,3 +1181,33 @@ def ellipsoidal_distance(lon1, lat1, lon2, lat2, a=6378137.0, f=298.2572221010**
 
     sigma[L] -= 0.5 * f * (X + Y)
     return a * sigma
+
+
+def ellipsoidal2cartesian(lon, lat, h=0, a=6378137.0, f=298.2572221010**-1):
+    """
+    Compute 3D cartesian coordinates from ellipsoidal (geographic) longitude, latitude and height.
+    
+    Parameters
+    ----------
+    lon : float, ndarray(m,)
+        geographic longitude in radians
+    lat : float, ndarray(m,)
+        geographic latitude in radians
+    h : float, ndarray(m,)
+        ellipsoidal height in meters (default: 0)
+    a : float
+        semi-major axis of ellipsoid in meters
+    f : float
+        flattening of ellipsoid
+
+    Returns
+    -------
+    xyz : ndarray(m,3(
+        3D cartesian coordinages
+    """
+    e2 = 2 * f - f ** 2
+    radius_of_curvature = a / np.sqrt(1 - e2 * np.sin(lat) ** 2)
+
+    return np.vstack(((radius_of_curvature + h) * np.cos(lat) * np.cos(lon),
+                      (radius_of_curvature + h) * np.cos(lat) * np.sin(lon),
+                      ((1 - e2) * radius_of_curvature + h) * np.sin(lat))).T

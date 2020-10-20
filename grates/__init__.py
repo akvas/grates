@@ -30,7 +30,6 @@ Modules
     grates.filter
     grates.gravityfield
     grates.grid
-    grates.groopsio
     grates.io
     grates.kernel
     grates.lstsq
@@ -43,7 +42,6 @@ Modules
 from . import filter
 from . import gravityfield
 from . import grid
-from . import groopsio
 from . import io
 from . import kernel
 from . import lstsq
@@ -51,4 +49,4 @@ from . import plot
 from . import time
 from . import utilities
 
-__all__ = ['filter', 'gravityfield', 'grid', 'groopsio', 'io', 'kernel', 'lstsq', 'plot', 'time', 'utilities']
+__all__ = ['filter', 'gravityfield', 'grid', 'io', 'kernel', 'lstsq', 'plot', 'time', 'utilities']
