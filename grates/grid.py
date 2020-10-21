@@ -109,8 +109,7 @@ class Grid(metaclass=abc.ABCMeta):
         cartesian_coordinates : ndarray(point_count, 3)
             ndarray containing the cartesian coordinates of the grid points (x, y, z).
         """
-        return ellipsoidal2cartesian(self.longitude(), self.latitude(), h=0, a=self.semimajor_axis(),
-                                     f=self.flattening())
+        return ellipsoidal2cartesian(self.longitude(), self.latitude(), h=0, a=self.semimajor_axis, f=self.flattening)
 
     def mean(self, mask=None):
         """
@@ -913,17 +912,18 @@ class Basin:
         lon = np.atleast_1d(lon)
         lat = np.atleast_1d(lat)
 
-        is_inside = np.zeros(lon.shape if lat.size == 1 else lat.shape, dtype=bool)
-
-        if buffer is not None:
-            for polygon in self.__polygons:
-                is_inside = np.logical_or(is_inside, spherical_pib(polygon, lon, lat, buffer))
-
-        count = np.zeros(is_inside.shape, dtype=int)
+        count = np.zeros(lon.shape if lat.size == 1 else lat.shape, dtype=int)
         for polygon in self.__polygons:
             count += spherical_pip(polygon, lon, lat)
+        is_inside_polygon = np.mod(count, 2).astype(bool)
 
-        return np.logical_or(np.mod(count, 2).astype(bool), is_inside)
+        if buffer is not None:
+            is_inside_buffer = np.zeros(count.shape, dtype=bool)
+            for polygon in self.__polygons:
+                is_inside_buffer = np.logical_or(is_inside_buffer, spherical_pib(polygon, lon, lat, np.abs(buffer)))
+            is_inside_polygon[is_inside_buffer] = buffer > 0
+
+        return is_inside_polygon
 
 
 def winding_number(polygon, x, y):
