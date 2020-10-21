@@ -912,17 +912,18 @@ class Basin:
         lon = np.atleast_1d(lon)
         lat = np.atleast_1d(lat)
 
-        is_inside = np.zeros(lon.shape if lat.size == 1 else lat.shape, dtype=bool)
-
-        if buffer is not None:
-            for polygon in self.__polygons:
-                is_inside = np.logical_or(is_inside, spherical_pib(polygon, lon, lat, buffer))
-
-        count = np.zeros(is_inside.shape, dtype=int)
+        count = np.zeros(lon.shape if lat.size == 1 else lat.shape, dtype=int)
         for polygon in self.__polygons:
             count += spherical_pip(polygon, lon, lat)
+        is_inside_polygon = np.mod(count, 2).astype(bool)
 
-        return np.logical_or(np.mod(count, 2).astype(bool), is_inside)
+        if buffer is not None:
+            is_inside_buffer = np.zeros(count.shape, dtype=bool)
+            for polygon in self.__polygons:
+                is_inside_buffer = np.logical_or(is_inside_buffer, spherical_pib(polygon, lon, lat, np.abs(buffer)))
+            is_inside_polygon[is_inside_buffer] = buffer > 0
+
+        return is_inside_polygon
 
 
 def winding_number(polygon, x, y):
