@@ -109,8 +109,7 @@ class Grid(metaclass=abc.ABCMeta):
         cartesian_coordinates : ndarray(point_count, 3)
             ndarray containing the cartesian coordinates of the grid points (x, y, z).
         """
-        return ellipsoidal2cartesian(self.longitude(), self.latitude(), h=0, a=self.semimajor_axis(),
-                                     f=self.flattening())
+        return ellipsoidal2cartesian(self.longitude(), self.latitude(), h=0, a=self.semimajor_axis, f=self.flattening)
 
     def mean(self, mask=None):
         """
