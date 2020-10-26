@@ -611,7 +611,7 @@ class GaussGrid(RegularGrid):
     """
     def __init__(self, parallel_count, a=6378137.0, f=298.2572221010**-1):
 
-        zeros, weights, mu = roots_legendre(parallel_count, mu=True)
+        zeros, weights, _ = roots_legendre(parallel_count, mu=True)
 
         dlon = np.pi/parallel_count
         self.lons = np.linspace(-np.pi + dlon*0.5, np.pi - dlon*0.5,  2 * parallel_count)
