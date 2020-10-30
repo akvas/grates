@@ -262,7 +262,7 @@ def unravel_coefficients(vector, min_degree=0, max_degree=None):
     if max_degree is None:
         max_degree = int(np.sqrt(vector.size + min_degree * min_degree) - 1)
 
-    array = np.empty((max_degree + 1, max_degree + 1))
+    array = np.zeros((max_degree + 1, max_degree + 1))
 
     idx = 0
     for n in range(min_degree, max_degree + 1):
