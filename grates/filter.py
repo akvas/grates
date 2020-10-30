@@ -7,11 +7,12 @@ Spatial filters for post-processing of potential coefficients.
 
 from grates.gravityfield import PotentialCoefficients
 import grates.kernel
-from grates.utilities import ravel_coefficients, spherical_harmonics, legendre_functions, trigonometric_functions
+import grates.utilities
 import pkg_resources
 import numpy as np
 import abc
 import scipy.signal as sig
+import scipy.linalg as la
 
 
 class SpatialFilter(metaclass=abc.ABCMeta):
@@ -96,17 +97,15 @@ class Gaussian(SpatialFilter):
             filter_array[n, 0:n + 1] = kn.coefficient(n)
             filter_array[0:n, n] = kn.coefficient(n)
 
-        return np.diag(ravel_coefficients(filter_array, min_degree, max_degree))
+        return np.diag(grates.utilities.ravel_coefficients(filter_array, min_degree, max_degree))
 
 
-class DDK(SpatialFilter):
+class OrderWiseFilter(SpatialFilter):
     """
-    Implements the DDK filter by Kusche et al. (2009) [1]_.
-
-    Parameters
-    ----------
-    level : int
-        DDK filter level (positive, non-zero)
+    Implements a spherical harmonic filter with a sparse filter matrix.
+    The filter matrix only considers correlations between spherical harmonic coefficients with the same
+    order and trigonometric function (sine/cosine) neglected. A popular realization of such a filter is
+    the DDK filter by Kusche et al. (2009) [1]_.
 
     References
     ----------
@@ -116,24 +115,14 @@ class DDK(SpatialFilter):
            https://doi.org/10.1007/s00190-009-0308-3
 
     """
-    def __init__(self, level):
+    def __init__(self, orderwise_blocks):
 
-        if level < 1:
-            raise ValueError('DDK level must be at least 1 (requested DDK{0:d}).'.format(level))
-
-        normals = np.load(pkg_resources.resource_filename('grates', 'data/ddk_normals.npz'), allow_pickle=True)['arr_0']
-        self.__nmax = normals[0].shape[0]-1
-        weights = 10**(15-level) * np.arange(self.__nmax + 1, dtype=float) ** 4
-        weights[0] = 1
-
-        self.__array = []
-        for normals_block in normals:
-            m = self.__nmax + 1 - normals_block.shape[0]
-            self.__array.append(np.linalg.solve(normals_block + np.diag(weights[m:]), normals_block))
+        self.__array = orderwise_blocks
+        self.__nmax = orderwise_blocks[0].shape[0]-1
 
     def filter(self, gravityfield):
         """
-        Apply the DDK filter to a PotentialCoefficients instance.
+        Apply the filter to a PotentialCoefficients instance.
 
         Parameters
         ----------
@@ -160,12 +149,12 @@ class DDK(SpatialFilter):
 
         result = gravityfield.copy()
 
-        result.anm[:, 0] = (self.__array[0][0:nmax+1, 0:nmax+1]@gravityfield.anm[:, 0:1]).flatten()
-        for m in range(1, nmax+1):
-            result.anm[m::, m] = (self.__array[2*m-1][0:nmax + 1 - m, 0:nmax + 1 - m] @
-                                  gravityfield.anm[m::, m:m+1]).flatten()
-            result.anm[m-1, m::] = (self.__array[2*m][0:nmax + 1 - m, 0:nmax + 1 - m] @
-                                    gravityfield.anm[m-1:m, m::].T).flatten()
+        result.anm[:, 0] = (self.__array[0][0:nmax + 1, 0:nmax + 1] @ gravityfield.anm[:, 0:1]).flatten()
+        for m in range(1, nmax + 1):
+            result.anm[m::, m] = (self.__array[2 * m - 1][0:nmax + 1 - m, 0:nmax + 1 - m] @
+                                  gravityfield.anm[m::, m:m + 1]).flatten()
+            result.anm[m - 1, m::] = (self.__array[2 * m][0:nmax + 1 - m, 0:nmax + 1 - m] @
+                                      gravityfield.anm[m - 1:m, m::].T).flatten()
 
         result.anm[0:2, 0:2] = gravityfield.anm[0:2, 0:2].copy()
 
@@ -173,7 +162,7 @@ class DDK(SpatialFilter):
 
     def matrix(self, min_degree, max_degree):
         """
-        DDK filter as filter matrix.
+        Return dense filter matrix.
 
         Parameters
         ----------
@@ -187,11 +176,11 @@ class DDK(SpatialFilter):
         filter_matrix : ndarray((max_degree + 1)**2 - min_degree**2, (max_degree + 1)**2 - min_degree**2)
             2d ndarray representing the filter
         """
-        coefficient_count = (max_degree + 1)*(max_degree + 1)
+        coefficient_count = (max_degree + 1) * (max_degree + 1)
 
         filter_matrix = np.zeros((coefficient_count, coefficient_count))
         degrees = np.arange(max_degree + 1, dtype=int)
-        index = degrees**2
+        index = degrees ** 2
 
         filter_matrix[np.ix_(index, index)] = self.__array[0][0:max_degree + 1, 0:max_degree + 1]
         for m in range(1, max_degree + 1):
@@ -200,7 +189,201 @@ class DDK(SpatialFilter):
             filter_matrix[np.ix_(index[m:] + 2 * m, index[m:] + 2 * m)] = \
                 self.__array[2 * m][0:max_degree + 1 - m, 0:max_degree + 1 - m]
 
-        return filter_matrix[min_degree*min_degree:, min_degree*min_degree:]
+        return filter_matrix[min_degree * min_degree:, min_degree * min_degree:]
+
+
+class DDK(OrderWiseFilter):
+    """
+    Implements the DDK filter by Kusche et al. (2009) [1]_.
+
+    Parameters
+    ----------
+    level : int
+        DDK filter level (positive, non-zero)
+
+    References
+    ----------
+
+    .. [1] Kusche, J., Schmidt, R., Petrovic, S. et al. Decorrelated GRACE time-variable gravity solutions by GFZ,
+           and their validation using a hydrological model. J Geod 83, 903–913 (2009).
+           https://doi.org/10.1007/s00190-009-0308-3
+
+    """
+    def __init__(self, level):
+
+        if level < 1:
+            raise ValueError('DDK level must be at least 1 (requested DDK{0:d}).'.format(level))
+
+        normals = np.load(pkg_resources.resource_filename('grates', 'data/ddk_normals.npz'), allow_pickle=True)['arr_0']
+        nmax = normals[0].shape[0]-1
+        weights = 10**(15-level) * np.arange(nmax + 1, dtype=float) ** 4
+        weights[0] = 1
+
+        array = []
+        for normals_block in normals:
+            m = nmax + 1 - normals_block.shape[0]
+            array.append(np.linalg.solve(normals_block + np.diag(weights[m:]), normals_block))
+
+        super(DDK, self).__init__(array)
+
+
+class BlockedVDK(OrderWiseFilter):
+    """
+    Implements a blocked version of the VDK filter. Instead of using the full normal equation matrix, the DDK filter
+    correlation structure is used.
+
+    Parameters
+    ----------
+    normal_equation_matrix : ndarray
+        normal equation matrix in degree wise coefficient order
+    min_degree : int
+        minimum degree contained in the normal equation matrix
+    max_degree : int
+        maximum degree contained in the normal equation matrix
+    kaula_scale : float
+        scale factor for the Kaula regularization used (scale factor for degree wise weights)
+    kaula_power : float
+        power for the Kaula regularization used (scale factor for degree wise weights)
+
+    References
+    ----------
+
+    .. [1] Kusche, J., Schmidt, R., Petrovic, S. et al. Decorrelated GRACE time-variable gravity solutions by GFZ,
+           and their validation using a hydrological model. J Geod 83, 903–913 (2009).
+           https://doi.org/10.1007/s00190-009-0308-3
+
+    """
+    def __init__(self, normal_equation_matrix, min_degree, max_degree, kaula_scale, kaula_power):
+
+        parameter_count = normal_equation_matrix.shape[0]
+        weights = kaula_scale * np.arange(max_degree + 1, dtype=float) ** kaula_power
+        weights[0] = 1
+        coefficient_meta = np.zeros((3, parameter_count), dtype=int)
+
+        idx = 0
+        for n in range(min_degree, max_degree + 1):
+            coefficient_meta[1, idx] = n
+            idx += 1
+            for m in range(1, n + 1):
+                coefficient_meta[1, idx] = n
+                coefficient_meta[2, idx] = m
+
+                coefficient_meta[0, idx + 1] = 1
+                coefficient_meta[1, idx + 1] = n
+                coefficient_meta[2, idx + 1] = m
+                idx += 2
+
+        index_array = coefficient_meta[2, :] == 0
+        normals = [np.zeros((max_degree + 1, max_degree + 1))]
+        normals[0][min_degree:, min_degree:] = normal_equation_matrix[np.ix_(index_array, index_array)]
+        for m in range(1, max_degree + 1):
+            index_array_cosine = np.logical_and(coefficient_meta[2, :] == m, coefficient_meta[0, :] == 0)
+            index_array_sine = np.logical_and(coefficient_meta[2, :] == m, coefficient_meta[0, :] == 1)
+
+            if m >= min_degree:
+                normals.append(normal_equation_matrix[np.ix_(index_array_cosine, index_array_cosine)])
+                normals.append(normal_equation_matrix[np.ix_(index_array_sine, index_array_sine)])
+            else:
+                coefficient_count = max_degree + 1 - m
+
+                normals.append(np.zeros((coefficient_count, coefficient_count)))
+                normals[-1][min_degree - m:, min_degree - m:] = normal_equation_matrix[np.ix_(index_array_cosine,
+                                                                                              index_array_cosine)]
+                normals.append(np.zeros((coefficient_count, coefficient_count)))
+                normals[-1][min_degree - m:, min_degree - m:] = normal_equation_matrix[np.ix_(index_array_sine,
+                                                                                             index_array_sine)]
+
+        array = []
+        for normals_block in normals:
+            m = max_degree + 1 - normals_block.shape[0]
+            array.append(np.linalg.solve(normals_block + np.diag(weights[m:]), normals_block))
+
+        super(BlockedVDK, self).__init__(array)
+
+
+class VDK(SpatialFilter):
+    """
+    Implementation of the VDK filter.
+
+    Parameters
+    ----------
+    normal_equation_matrix : ndarray
+        normal equation matrix in degree wise coefficient order
+        min_degree : int
+        minimum degree contained in the normal equation matrix
+    max_degree : int
+        maximum degree contained in the normal equation matrix
+    kaula_scale : float
+        scale factor for the Kaula regularization used (scale factor for degree wise weights)
+    kaula_power : float
+        power for the Kaula regularization used (scale factor for degree wise weights)
+    """
+    def __init__(self, normal_equation_matrix, min_degree, max_degree, kaula_scale, kaula_power):
+
+        degree_weights = kaula_scale * np.arange(max_degree + 1, dtype=float) ** kaula_power
+        degree_weights[0] = 1
+
+        weights = np.full(int((max_degree + 1)**2 - min_degree**2), np.nan)
+        idx = 0
+        for n in range(min_degree, max_degree + 1):
+            weights[idx] = degree_weights[n]
+            idx += 1
+            for m in range(1, n + 1):
+                weights[idx] = degree_weights[n]
+                weights[idx + 1] = degree_weights[n]
+                idx += 2
+
+        self.__W = np.linalg.solve(normal_equation_matrix + np.diag(weights), normal_equation_matrix)
+
+        self.__nmin = min_degree
+        self.__nmax = max_degree
+
+    def filter(self, gravityfield):
+        """
+        Apply the filter to a PotentialCoefficients instance.
+
+        Parameters
+        ----------
+        gravityfield : PotentialCoefficients instance
+            gravity field to be filtered, remains unchanged
+
+        Returns
+        -------
+        result : PotentialCoefficients instance
+            filterd copy of input
+
+        """
+        result = gravityfield.copy()
+
+        x = grates.utilities.ravel_coefficients(result.anm, self.__nmin, self.__nmax)[:, np.newaxis]
+        x_filtered = (self.__W @ x).flatten()
+
+        result.anm[self.__nmin:self.__nmax + 1, self.__nmin:self.__nmax + 1] = \
+            grates.utilities.unravel_coefficients(x_filtered, self.__nmin, self.__nmax)[self.__nmin:self.__nmax + 1,
+                                                                                        self.__nmin:self.__nmax + 1]
+
+        return result
+
+    def matrix(self, min_degree, max_degree):
+        """
+        Return dense filter matrix.
+
+        Parameters
+        ----------
+        min_degree : int
+            minimum filter degree
+        max_degree : int
+            maximum filter degree
+
+        Returns
+        -------
+        filter_matrix : ndarray((max_degree + 1)**2 - min_degree**2, (max_degree + 1)**2 - min_degree**2)
+            2d ndarray representing the filter
+        """
+        if self.__nmin == min_degree and self.__nmax == max_degree:
+            return self.__W.copy()
+        else:
+            raise NotImplemented('generic min/max degrees not yet implemented')
 
 
 class FilterKernel:
@@ -249,17 +432,18 @@ class FilterKernel:
 
         inverse_coefficients = kn.inverse_coefficient_array(self.__max_degree)
 
-        spherical_harmonics_source = spherical_harmonics(self.__max_degree, np.pi * 0.5 - source_latitude,
-                                                         source_longitude)
-        v1 = ravel_coefficients(spherical_harmonics_source * inverse_coefficients,
+        spherical_harmonics_source = grates.utilities.spherical_harmonics(self.__max_degree,
+                                                                          np.pi * 0.5 - source_latitude,
+                                                                          source_longitude)
+        v1 = grates.utilities.ravel_coefficients(spherical_harmonics_source * inverse_coefficients,
                                 self.__min_degree, self.__max_degree) @ self.__matrix
 
         coefficients = kn.coefficient_array(self.__max_degree)
-        spherical_harmonics_eval = spherical_harmonics(self.__max_degree, np.pi * 0.5 - eval_latitude,
-                                                       eval_longitude) * coefficients
+        spherical_harmonics_eval = grates.utilities.spherical_harmonics(self.__max_degree, np.pi * 0.5 - eval_latitude,
+                                                                     eval_longitude) * coefficients
 
-        return np.atleast_1d((v1 @ ravel_coefficients(spherical_harmonics_eval,
-                                                      self.__min_degree, self.__max_degree).T).squeeze())
+        return np.atleast_1d((v1 @ grates.utilities.ravel_coefficients(spherical_harmonics_eval, self.__min_degree,
+                                                                       self.__max_degree).T).squeeze())
 
     def evaluate_grid(self, source_longitude, source_latitude, eval_longitude, eval_latitude, kernel='potential'):
         """
@@ -288,17 +472,20 @@ class FilterKernel:
 
         inverse_coefficients = kn.inverse_coefficient_array(self.__max_degree)
 
-        spherical_harmonics_source = spherical_harmonics(self.__max_degree, np.pi * 0.5 - source_latitude, source_longitude)
-        v1 = ravel_coefficients(spherical_harmonics_source * inverse_coefficients,
+        spherical_harmonics_source = grates.utilities.spherical_harmonics(self.__max_degree,
+                                                                          np.pi * 0.5 - source_latitude,
+                                                                          source_longitude)
+        v1 = grates.utilities.ravel_coefficients(spherical_harmonics_source * inverse_coefficients,
                                 self.__min_degree, self.__max_degree) @ self.__matrix
 
         coefficients = kn.coefficient_array(self.__max_degree)
-        pnm = legendre_functions(self.__max_degree, np.pi * 0.5 - eval_latitude) * coefficients
-        cs = trigonometric_functions(self.__max_degree, eval_longitude)
+        pnm = grates.utilities.legendre_functions(self.__max_degree, np.pi * 0.5 - eval_latitude) * coefficients
+        cs = grates.utilities.trigonometric_functions(self.__max_degree, eval_longitude)
 
         grid = np.empty((eval_latitude.size, eval_longitude.size))
         for k in range(eval_latitude.size):
-            grid[k, :] = (ravel_coefficients(cs * pnm[k], self.__min_degree, self.__max_degree) @ v1.T).squeeze()
+            grid[k, :] = (grates.utilities.ravel_coefficients(cs * pnm[k], self.__min_degree,
+                                                              self.__max_degree) @ v1.T).squeeze()
 
         return grid
 
