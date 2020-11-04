@@ -104,7 +104,7 @@ class OrderWiseFilter(SpatialFilter):
     """
     Implements a spherical harmonic filter with a sparse filter matrix.
     The filter matrix only considers correlations between spherical harmonic coefficients with the same
-    order and trigonometric function (sine/cosine) neglected. A popular realization of such a filter is
+    order and trigonometric function (sine/cosine). A popular realization of such a filter is
     the DDK filter by Kusche et al. (2009) [1]_.
 
     References
@@ -214,7 +214,7 @@ class DDK(OrderWiseFilter):
         if level < 1:
             raise ValueError('DDK level must be at least 1 (requested DDK{0:d}).'.format(level))
 
-        normals = np.load(pkg_resources.resource_filename('grates', 'data/ddk_normals.npz'), allow_pickle=True)['arr_0']
+        normals = DDK.__blocked_normals()
         nmax = normals[0].shape[0]-1
         weights = 10**(15-level) * np.arange(nmax + 1, dtype=float) ** 4
         weights[0] = 1
@@ -226,10 +226,51 @@ class DDK(OrderWiseFilter):
 
         super(DDK, self).__init__(array)
 
+    @staticmethod
+    def __blocked_normals():
+        """
+        Return the orderwise normal equation blocks of the DDK normal equation matrix.
+
+        Returns
+        -------
+        block_matrix : object array
+            orderwise matrix blocks (alternating cosine/sine per order, order 0 only contains cosine coefficients)
+        """
+        return np.load(pkg_resources.resource_filename('grates', 'data/ddk_normals.npz'), allow_pickle=True)['arr_0']
+
+    @staticmethod
+    def normal_equation_matrix():
+        """
+        Return the dense DDK normal equation matrix in degreewise ordering.
+
+        Returns
+        -------
+        matrix : ndarray(n, n)
+            dense DDK normal equation matrix
+        """
+        normals = DDK.__blocked_normals()
+        max_degree = normals[0].shape[0]-1
+
+        coefficient_count = (max_degree + 1) * (max_degree + 1)
+
+        normal_matrix = np.zeros((coefficient_count, coefficient_count))
+        degrees = np.arange(max_degree + 1, dtype=int)
+        index = degrees ** 2
+
+        normal_matrix[np.ix_(index, index)] = normals[0][0:max_degree + 1, 0:max_degree + 1]
+        for m in range(1, max_degree + 1):
+            normal_matrix[np.ix_(index[m:] + 2 * m - 1, index[m:] + 2 * m - 1)] = \
+                normals[2 * m - 1][0:max_degree + 1 - m, 0:max_degree + 1 - m]
+            normal_matrix[np.ix_(index[m:] + 2 * m, index[m:] + 2 * m)] = \
+                normals[2 * m][0:max_degree + 1 - m, 0:max_degree + 1 - m]
+
+        return normal_matrix[4:, 4:]
+
+
 
 class BlockedVDK(OrderWiseFilter):
     """
-    Implements a blocked version of the VDK filter. Instead of using the full normal equation matrix, the DDK filter
+    Implements a blocked version of the VDK filter [1]_. Instead of using the full normal equation matrix, the DDK filter [2]_
     correlation structure is used.
 
     Parameters
@@ -248,7 +289,10 @@ class BlockedVDK(OrderWiseFilter):
     References
     ----------
 
-    .. [1] Kusche, J., Schmidt, R., Petrovic, S. et al. Decorrelated GRACE time-variable gravity solutions by GFZ,
+    .. [1] Horvath, A., Murböck, M., Pail, R., & Horwath, M. (2018). Decorrelation of GRACE time variable gravity field
+           solutions using full covariance information. Geosciences, 8(9), 323. https://doi.org/10.3390/geosciences8090323
+
+    .. [2] Kusche, J., Schmidt, R., Petrovic, S. et al. Decorrelated GRACE time-variable gravity solutions by GFZ,
            and their validation using a hydrological model. J Geod 83, 903–913 (2009).
            https://doi.org/10.1007/s00190-009-0308-3
 
@@ -303,7 +347,7 @@ class BlockedVDK(OrderWiseFilter):
 
 class VDK(SpatialFilter):
     """
-    Implementation of the VDK filter.
+    Implementation of the VDK filter [1]_.
 
     Parameters
     ----------
@@ -317,23 +361,25 @@ class VDK(SpatialFilter):
         scale factor for the Kaula regularization used (scale factor for degree wise weights)
     kaula_power : float
         power for the Kaula regularization used (scale factor for degree wise weights)
+
+    References
+    ----------
+
+    .. [1] Horvath, A., Murböck, M., Pail, R., & Horwath, M. (2018). Decorrelation of GRACE time variable gravity field
+           solutions using full covariance information. Geosciences, 8(9), 323. https://doi.org/10.3390/geosciences8090323
+
     """
     def __init__(self, normal_equation_matrix, min_degree, max_degree, kaula_scale, kaula_power):
 
-        degree_weights = kaula_scale * np.arange(max_degree + 1, dtype=float) ** kaula_power
-        degree_weights[0] = 1
-
-        weights = np.full(int((max_degree + 1)**2 - min_degree**2), np.nan)
-        idx = 0
+        coefficient_weights = np.empty((max_degree + 1, max_degree + 1))
         for n in range(min_degree, max_degree + 1):
-            weights[idx] = degree_weights[n]
-            idx += 1
-            for m in range(1, n + 1):
-                weights[idx] = degree_weights[n]
-                weights[idx + 1] = degree_weights[n]
-                idx += 2
+            row_idx, col_idx = grates.gravityfield.degree_indices(n)
+            coefficient_weights[row_idx, col_idx] = kaula_scale * float(n)**kaula_power
 
-        self.__W = np.linalg.solve(normal_equation_matrix + np.diag(weights), normal_equation_matrix)
+        NP = normal_equation_matrix.copy()
+        NP.flat[::NP.shape[0]+1] = np.diag(normal_equation_matrix) + grates.utilities.ravel_coefficients(coefficient_weights, min_degree, max_degree)
+
+        self.__W = np.linalg.solve(NP, normal_equation_matrix)
 
         self.__nmin = min_degree
         self.__nmax = max_degree
@@ -354,13 +400,13 @@ class VDK(SpatialFilter):
 
         """
         result = gravityfield.copy()
+        max_degree = min(result.max_degree(), self.__nmax)
 
-        x = grates.utilities.ravel_coefficients(result.anm, self.__nmin, self.__nmax)[:, np.newaxis]
+        x = grates.utilities.ravel_coefficients(gravityfield.anm, self.__nmin, self.__nmax)[:, np.newaxis]
         x_filtered = (self.__W @ x).flatten()
 
-        result.anm[self.__nmin:self.__nmax + 1, self.__nmin:self.__nmax + 1] = \
-            grates.utilities.unravel_coefficients(x_filtered, self.__nmin, self.__nmax)[self.__nmin:self.__nmax + 1,
-                                                                                        self.__nmin:self.__nmax + 1]
+        result.anm = grates.utilities.unravel_coefficients(x_filtered, self.__nmin, max_degree)
+        result.anm[0:self.__nmin, 0:self.__nmin] = gravityfield.anm[0:self.__nmin, 0:self.__nmin].copy()
 
         return result
 
@@ -383,7 +429,7 @@ class VDK(SpatialFilter):
         if self.__nmin == min_degree and self.__nmax == max_degree:
             return self.__W.copy()
         else:
-            raise NotImplemented('generic min/max degrees not yet implemented')
+            raise NotImplementedError('generic min/max degrees not yet implemented')
 
 
 class FilterKernel:

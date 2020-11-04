@@ -343,14 +343,17 @@ class Gauss(Kernel):
         nmax = 1024
         self.__radius = radius
 
-        b = np.log(2.0) / (1 - np.cos(radius / 6378.1366))
-        self.__wn = np.zeros(nmax + 1)
-        self.__wn[0] = 1.0
-        self.__wn[1] = (1 + np.exp(-2 * b)) / (1 - np.exp(-2 * b)) - 1 / b
-        for n in range(2, nmax + 1):
-            self.__wn[n] = -(2 * n - 1) / b * self.__wn[n - 1] + self.__wn[n - 2]
-            if self.__wn[n] < 1e-7:
-                break
+        if self.__radius > 0:
+            b = np.log(2.0) / (1 - np.cos(radius / 6378.1366))
+            self.__wn = np.zeros(nmax + 1)
+            self.__wn[0] = 1.0
+            self.__wn[1] = (1 + np.exp(-2 * b)) / (1 - np.exp(-2 * b)) - 1 / b
+            for n in range(2, nmax + 1):
+                self.__wn[n] = -(2 * n - 1) / b * self.__wn[n - 1] + self.__wn[n - 2]
+                if self.__wn[n] < 1e-7:
+                    break
+        else:
+            self.__wn = np.ones(nmax + 1)
 
     def coefficient(self, n, r=6378136.6, colat=0):
         """
@@ -372,14 +375,17 @@ class Gauss(Kernel):
         """
         nmax = self.__wn.size - 1
         if n > nmax:
-            wn = self.__wn.copy()
-            self.__wn = np.empty(n + 1)
-            self.__wn[0:nmax+1] = wn
-            b = np.log(2.0) / (1 - np.cos(self.__radius / 6378.1366))
-            for d in range(nmax + 1, n + 1):
-                self.__wn[d] = -(2 * n - 1) / b * self.__wn[d - 1] + self.__wn[d - 2]
-                if self.__wn[d] < 1e-7:
-                    break
+            if self.__radius > 0:
+                wn = self.__wn.copy()
+                self.__wn = np.empty(n + 1)
+                self.__wn[0:nmax+1] = wn
+                b = np.log(2.0) / (1 - np.cos(self.__radius / 6378.1366))
+                for d in range(nmax + 1, n + 1):
+                    self.__wn[d] = -(2 * n - 1) / b * self.__wn[d - 1] + self.__wn[d - 2]
+                    if self.__wn[d] < 1e-7:
+                        break
+            else:
+                self.__wn = np.ones(n + 1)
 
         count = max(np.asarray(r).size, np.asarray(colat).size)
 
