@@ -214,7 +214,7 @@ class DDK(OrderWiseFilter):
         if level < 1:
             raise ValueError('DDK level must be at least 1 (requested DDK{0:d}).'.format(level))
 
-        normals = np.load(pkg_resources.resource_filename('grates', 'data/ddk_normals.npz'), allow_pickle=True)['arr_0']
+        normals = DDK.__blocked_normals()
         nmax = normals[0].shape[0]-1
         weights = 10**(15-level) * np.arange(nmax + 1, dtype=float) ** 4
         weights[0] = 1
