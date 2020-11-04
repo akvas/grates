@@ -35,6 +35,7 @@ Modules
     grates.lstsq
     grates.plot
     grates.time
+    grates.transport
     grates.utilities
 
 """
@@ -47,6 +48,7 @@ from . import kernel
 from . import lstsq
 from . import plot
 from . import time
+from . import transport
 from . import utilities
 
-__all__ = ['filter', 'gravityfield', 'grid', 'io', 'kernel', 'lstsq', 'plot', 'time', 'utilities']
+__all__ = ['filter', 'gravityfield', 'grid', 'io', 'kernel', 'lstsq', 'plot', 'time', 'transport', 'utilities']
