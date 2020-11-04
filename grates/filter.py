@@ -104,7 +104,7 @@ class OrderWiseFilter(SpatialFilter):
     """
     Implements a spherical harmonic filter with a sparse filter matrix.
     The filter matrix only considers correlations between spherical harmonic coefficients with the same
-    order and trigonometric function (sine/cosine) neglected. A popular realization of such a filter is
+    order and trigonometric function (sine/cosine). A popular realization of such a filter is
     the DDK filter by Kusche et al. (2009) [1]_.
 
     References
