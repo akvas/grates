@@ -361,23 +361,25 @@ class VDK(SpatialFilter):
         scale factor for the Kaula regularization used (scale factor for degree wise weights)
     kaula_power : float
         power for the Kaula regularization used (scale factor for degree wise weights)
+
+    References
+    ----------
+
+    .. [1] Horvath, A., Murböck, M., Pail, R., & Horwath, M. (2018). Decorrelation of GRACE time variable gravity field
+           solutions using full covariance information. Geosciences, 8(9), 323. https://doi.org/10.3390/geosciences8090323
+
     """
     def __init__(self, normal_equation_matrix, min_degree, max_degree, kaula_scale, kaula_power):
 
-        degree_weights = kaula_scale * np.arange(max_degree + 1, dtype=float) ** kaula_power
-        degree_weights[0] = 1
-
-        weights = np.full(int((max_degree + 1)**2 - min_degree**2), np.nan)
-        idx = 0
+        coefficient_weights = np.empty((max_degree + 1, max_degree + 1))
         for n in range(min_degree, max_degree + 1):
-            weights[idx] = degree_weights[n]
-            idx += 1
-            for m in range(1, n + 1):
-                weights[idx] = degree_weights[n]
-                weights[idx + 1] = degree_weights[n]
-                idx += 2
+            row_idx, col_idx = grates.gravityfield.degree_indices(n)
+            coefficient_weights[row_idx, col_idx] = kaula_scale * float(n)**kaula_power
 
-        self.__W = np.linalg.solve(normal_equation_matrix + np.diag(weights), normal_equation_matrix)
+        NP = normal_equation_matrix.copy()
+        NP.flat[::NP.shape[0]+1] = np.diag(normal_equation_matrix) + grates.utilities.ravel_coefficients(coefficient_weights, min_degree, max_degree)
+
+        self.__W = np.linalg.solve(NP, normal_equation_matrix)
 
         self.__nmin = min_degree
         self.__nmax = max_degree
@@ -398,13 +400,13 @@ class VDK(SpatialFilter):
 
         """
         result = gravityfield.copy()
+        max_degree = min(result.max_degree(), self.__nmax)
 
-        x = grates.utilities.ravel_coefficients(result.anm, self.__nmin, self.__nmax)[:, np.newaxis]
+        x = grates.utilities.ravel_coefficients(gravityfield.anm, self.__nmin, self.__nmax)[:, np.newaxis]
         x_filtered = (self.__W @ x).flatten()
 
-        result.anm[self.__nmin:self.__nmax + 1, self.__nmin:self.__nmax + 1] = \
-            grates.utilities.unravel_coefficients(x_filtered, self.__nmin, self.__nmax)[self.__nmin:self.__nmax + 1,
-                                                                                        self.__nmin:self.__nmax + 1]
+        result.anm = grates.utilities.unravel_coefficients(x_filtered, self.__nmin, max_degree)
+        result.anm[0:self.__nmin, 0:self.__nmin] = gravityfield.anm[0:self.__nmin, 0:self.__nmin].copy()
 
         return result
 
@@ -427,7 +429,7 @@ class VDK(SpatialFilter):
         if self.__nmin == min_degree and self.__nmax == max_degree:
             return self.__W.copy()
         else:
-            raise NotImplemented('generic min/max degrees not yet implemented')
+            raise NotImplementedError('generic min/max degrees not yet implemented')
 
 
 class FilterKernel:
