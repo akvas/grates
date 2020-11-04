@@ -226,10 +226,51 @@ class DDK(OrderWiseFilter):
 
         super(DDK, self).__init__(array)
 
+    @staticmethod
+    def __blocked_normals():
+        """
+        Return the orderwise normal equation blocks of the DDK normal equation matrix.
+
+        Returns
+        -------
+        block_matrix : object array
+            orderwise matrix blocks (alternating cosine/sine per order, order 0 only contains cosine coefficients)
+        """
+        return np.load(pkg_resources.resource_filename('grates', 'data/ddk_normals.npz'), allow_pickle=True)['arr_0']
+
+    @staticmethod
+    def normal_equation_matrix():
+        """
+        Return the dense DDK normal equation matrix in degreewise ordering.
+
+        Returns
+        -------
+        matrix : ndarray(n, n)
+            dense DDK normal equation matrix
+        """
+        normals = DDK.__blocked_normals()
+        max_degree = normals[0].shape[0]-1
+
+        coefficient_count = (max_degree + 1) * (max_degree + 1)
+
+        normal_matrix = np.zeros((coefficient_count, coefficient_count))
+        degrees = np.arange(max_degree + 1, dtype=int)
+        index = degrees ** 2
+
+        normal_matrix[np.ix_(index, index)] = normals[0][0:max_degree + 1, 0:max_degree + 1]
+        for m in range(1, max_degree + 1):
+            normal_matrix[np.ix_(index[m:] + 2 * m - 1, index[m:] + 2 * m - 1)] = \
+                normals[2 * m - 1][0:max_degree + 1 - m, 0:max_degree + 1 - m]
+            normal_matrix[np.ix_(index[m:] + 2 * m, index[m:] + 2 * m)] = \
+                normals[2 * m][0:max_degree + 1 - m, 0:max_degree + 1 - m]
+
+        return normal_matrix[4:, 4:]
+
+
 
 class BlockedVDK(OrderWiseFilter):
     """
-    Implements a blocked version of the VDK filter. Instead of using the full normal equation matrix, the DDK filter
+    Implements a blocked version of the VDK filter [1]_. Instead of using the full normal equation matrix, the DDK filter [2]_
     correlation structure is used.
 
     Parameters
@@ -248,7 +289,10 @@ class BlockedVDK(OrderWiseFilter):
     References
     ----------
 
-    .. [1] Kusche, J., Schmidt, R., Petrovic, S. et al. Decorrelated GRACE time-variable gravity solutions by GFZ,
+    .. [1] Horvath, A., Murböck, M., Pail, R., & Horwath, M. (2018). Decorrelation of GRACE time variable gravity field
+           solutions using full covariance information. Geosciences, 8(9), 323. https://doi.org/10.3390/geosciences8090323
+
+    .. [2] Kusche, J., Schmidt, R., Petrovic, S. et al. Decorrelated GRACE time-variable gravity solutions by GFZ,
            and their validation using a hydrological model. J Geod 83, 903–913 (2009).
            https://doi.org/10.1007/s00190-009-0308-3
 
@@ -303,7 +347,7 @@ class BlockedVDK(OrderWiseFilter):
 
 class VDK(SpatialFilter):
     """
-    Implementation of the VDK filter.
+    Implementation of the VDK filter [1]_.
 
     Parameters
     ----------
