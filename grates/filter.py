@@ -232,10 +232,16 @@ class DDK(OrderWiseFilter):
 
         Returns
         -------
-        block_matrix : object array
+        block_matrix : list of ndarrays
             orderwise matrix blocks (alternating cosine/sine per order, order 0 only contains cosine coefficients)
         """
-        return np.load(pkg_resources.resource_filename('grates', 'data/ddk_normals.npz'), allow_pickle=True)['arr_0']
+        with np.load(pkg_resources.resource_filename('grates', 'data/ddk_normal_blocks.npz')) as f:
+            blocks = [f['order0_cos']]
+            for m in range(1, 120 + 1):
+                blocks.append(f['order{0:d}_cos'.format(m)])
+                blocks.append(f['order{0:d}_sin'.format(m)])
+
+            return blocks
 
     @staticmethod
     def normal_equation_matrix():
@@ -342,59 +348,6 @@ class BlockedNormalsVDK(OrderWiseFilter):
             array.append(np.linalg.solve(normals_block + np.diag(weights[m:]), normals_block))
 
         super(BlockedNormalsVDK, self).__init__(array)
-
-
-class BlockedVDK(OrderWiseFilter):
-
-    def __init__(self, normal_equation_matrix, min_degree, max_degree, kaula_scale, kaula_power):
-
-        parameter_count = normal_equation_matrix.shape[0]
-
-        coefficient_weights = np.empty((max_degree + 1, max_degree + 1))
-        for n in range(min_degree, max_degree + 1):
-            row_idx, col_idx = grates.gravityfield.degree_indices(n)
-            coefficient_weights[row_idx, col_idx] = kaula_scale * float(n)**kaula_power
-
-        NP = normal_equation_matrix.copy()
-        NP.flat[::NP.shape[0]+1] = np.diag(normal_equation_matrix) + grates.utilities.ravel_coefficients(coefficient_weights, min_degree, max_degree)
-
-        filter_matrix = np.linalg.solve(NP, normal_equation_matrix)
-
-        coefficient_meta = np.zeros((3, parameter_count), dtype=int)
-        idx = 0
-        for n in range(min_degree, max_degree + 1):
-            coefficient_meta[1, idx] = n
-            idx += 1
-            for m in range(1, n + 1):
-                coefficient_meta[1, idx] = n
-                coefficient_meta[2, idx] = m
-
-                coefficient_meta[0, idx + 1] = 1
-                coefficient_meta[1, idx + 1] = n
-                coefficient_meta[2, idx + 1] = m
-                idx += 2
-
-        index_array = coefficient_meta[2, :] == 0
-        array = [np.zeros((max_degree + 1, max_degree + 1))]
-        array[0][min_degree:, min_degree:] = filter_matrix[np.ix_(index_array, index_array)]
-        for m in range(1, max_degree + 1):
-            index_array_cosine = np.logical_and(coefficient_meta[2, :] == m, coefficient_meta[0, :] == 0)
-            index_array_sine = np.logical_and(coefficient_meta[2, :] == m, coefficient_meta[0, :] == 1)
-
-            if m >= min_degree:
-                array.append(filter_matrix[np.ix_(index_array_cosine, index_array_cosine)])
-                array.append(filter_matrix[np.ix_(index_array_sine, index_array_sine)])
-            else:
-                coefficient_count = max_degree + 1 - m
-
-                array.append(np.zeros((coefficient_count, coefficient_count)))
-                array[-1][min_degree - m:, min_degree - m:] = filter_matrix[np.ix_(index_array_cosine,
-                                                                                              index_array_cosine)]
-                array.append(np.zeros((coefficient_count, coefficient_count)))
-                array[-1][min_degree - m:, min_degree - m:] = filter_matrix[np.ix_(index_array_sine,
-                                                                                             index_array_sine)]
-
-        super(BlockedVDK, self).__init__(array)
 
 
 class VDK(SpatialFilter):
