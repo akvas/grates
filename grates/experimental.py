@@ -14,8 +14,84 @@ import grates.kernel
 import grates.utilities
 import netCDF4
 import grates.grid
+import grates.filter
 
 
+class BlockedVDK(grates.filter.OrderWiseFilter):
+    """
+    Experimental version of the VDK filter [1]_: Construct the filter matrix from a full normal equation matrix but then
+    use only orderwise blocks for filtering.
+
+    Parameters
+    ----------
+    normal_equation_matrix : ndarray
+        normal equation matrix in degree wise coefficient order
+        min_degree : int
+        minimum degree contained in the normal equation matrix
+    max_degree : int
+        maximum degree contained in the normal equation matrix
+    kaula_scale : float
+        scale factor for the Kaula regularization used (scale factor for degree wise weights)
+    kaula_power : float
+        power for the Kaula regularization used (scale factor for degree wise weights)
+
+    References
+    ----------
+
+    .. [1] Horvath, A., Murböck, M., Pail, R., & Horwath, M. (2018). Decorrelation of GRACE time variable gravity field
+           solutions using full covariance information. Geosciences, 8(9), 323. https://doi.org/10.3390/geosciences8090323
+
+
+    """
+    def __init__(self, normal_equation_matrix, min_degree, max_degree, kaula_scale, kaula_power):
+
+        parameter_count = normal_equation_matrix.shape[0]
+
+        coefficient_weights = np.empty((max_degree + 1, max_degree + 1))
+        for n in range(min_degree, max_degree + 1):
+            row_idx, col_idx = grates.gravityfield.degree_indices(n)
+            coefficient_weights[row_idx, col_idx] = kaula_scale * float(n)**kaula_power
+
+        NP = normal_equation_matrix.copy()
+        NP.flat[::NP.shape[0]+1] = np.diag(normal_equation_matrix) + grates.utilities.ravel_coefficients(coefficient_weights, min_degree, max_degree)
+
+        filter_matrix = np.linalg.solve(NP, normal_equation_matrix)
+
+        coefficient_meta = np.zeros((3, parameter_count), dtype=int)
+        idx = 0
+        for n in range(min_degree, max_degree + 1):
+            coefficient_meta[1, idx] = n
+            idx += 1
+            for m in range(1, n + 1):
+                coefficient_meta[1, idx] = n
+                coefficient_meta[2, idx] = m
+
+                coefficient_meta[0, idx + 1] = 1
+                coefficient_meta[1, idx + 1] = n
+                coefficient_meta[2, idx + 1] = m
+                idx += 2
+
+        index_array = coefficient_meta[2, :] == 0
+        array = [np.zeros((max_degree + 1, max_degree + 1))]
+        array[0][min_degree:, min_degree:] = filter_matrix[np.ix_(index_array, index_array)]
+        for m in range(1, max_degree + 1):
+            index_array_cosine = np.logical_and(coefficient_meta[2, :] == m, coefficient_meta[0, :] == 0)
+            index_array_sine = np.logical_and(coefficient_meta[2, :] == m, coefficient_meta[0, :] == 1)
+
+            if m >= min_degree:
+                array.append(filter_matrix[np.ix_(index_array_cosine, index_array_cosine)])
+                array.append(filter_matrix[np.ix_(index_array_sine, index_array_sine)])
+            else:
+                coefficient_count = max_degree + 1 - m
+
+                array.append(np.zeros((coefficient_count, coefficient_count)))
+                array[-1][min_degree - m:, min_degree - m:] = filter_matrix[np.ix_(index_array_cosine,
+                                                                                              index_array_cosine)]
+                array.append(np.zeros((coefficient_count, coefficient_count)))
+                array[-1][min_degree - m:, min_degree - m:] = filter_matrix[np.ix_(index_array_sine,
+                                                                                             index_array_sine)]
+
+        super(BlockedVDK, self).__init__(array)
 
 
 def lsa_psd(x, y, nperseg=256, window='boxcar'):
