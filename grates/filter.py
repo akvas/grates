@@ -12,7 +12,6 @@ import pkg_resources
 import numpy as np
 import abc
 import scipy.signal as sig
-import scipy.linalg as la
 
 
 class SpatialFilter(metaclass=abc.ABCMeta):
