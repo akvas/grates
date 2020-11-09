@@ -70,26 +70,38 @@ class Grid(metaclass=abc.ABCMeta):
     Subclasses must implement a deep copy, getter for radius and colatitude as well as a method which returns
     whether the grid is regular (e.g. equiangular geographic coordinates) or an arbitrary point distribution.
     """
-    __slots__ = ['semimajor_axis', 'flattening', 'values']
 
     @abc.abstractmethod
     def copy(self):
         pass
 
+    @property
     @abc.abstractmethod
-    def is_regular(self):
+    def semimajor_axis(self):
         pass
 
+    @property
+    @abc.abstractmethod
+    def flattening(self):
+        pass
+
+    @property
     @abc.abstractmethod
     def longitude(self):
         pass
 
+    @property
     @abc.abstractmethod
     def latitude(self):
         pass
 
+    @property
     @abc.abstractmethod
     def area(self):
+        pass
+
+    @abc.abstractmethod
+    def values(self):
         pass
 
     @abc.abstractmethod
@@ -136,7 +148,7 @@ class Grid(metaclass=abc.ABCMeta):
 
         areas = self.area()
         if areas is not None:
-            return np.sum(areas*self.values[mask])/np.sum(areas)
+            return np.sum(areas * self.values[mask]) / np.sum(areas)
         else:
             return np.mean(self.values[mask])
 
@@ -241,38 +253,90 @@ class RegularGrid(Grid):
     Base class for regular, global point distributions on the ellipsoid, for example a geographic grid. The points of a
     regular grid are characterized by the location of parallel circles and meridians rather than longitude/latitude
     pairs.
+
+    Parameters
+    ----------
+    meridians : ndarray(n,)
+        longitude of meridians in radians
+    parallels : ndarray(m,)
+        latitude of parallel circles in radians
+    area_elements : None or ndarray(m, n)
+        area element of each grid point
+    a : float
+        semi-major axis of ellipsoid
+    f : float
+        flattening of ellipsoid
     """
-    __slots__ = ['lons', 'lats', 'areas']
+    def __init__(self, meridians, parallels, area_elements=None, a=6378137.0, f=298.2572221010**-1):
+
+        self.parallels = parallels
+        self.meridians = meridians
+
+        self.__a = a
+        self.__f = f
+
+        lon_edges = np.concatenate(([-np.pi], self.meridians[0:-1] + 0.5 * np.diff(self.meridians), [np.pi]))
+        lat_edges = np.concatenate(([0.5 * np.pi], self.parallels[0:-1] + 0.5 * np.diff(self.parallels), [-0.5 * np.pi]))
+
+        self.__areas = 2.0 * (np.sin(np.diff(lat_edges) * 0.5) * np.cos(self.parallels))[:, np.newaxis] * np.diff(lon_edges) if area_elements is None else area_elements
+        self.value_array = None
+        self.epoch = None
 
     def copy(self):
-        pass
 
-    def is_regular(self):
-        return True
+        grid = RegularGrid(self.meridians.copy(), self.parallels.copy(), self.__areas.copy(), self.semimajor_axis, self.flattening)
+        if self.value_array is not None:
+            grid.values = self.values.copy()
+        grid.epoch = self.epoch
 
+        return grid
+
+    @property
+    def semimajor_axis(self):
+        return self.__a
+
+    @property
+    def flattening(self):
+        return self.__f
+
+    @property
     def point_count(self):
-        return self.lats.size*self.lons.size
+        return self.parallels.size * self.meridians.size
 
+    @property
     def longitude(self):
-        lon = np.empty(self.lats.size * self.lons.size)
-        for k in range(self.lats.size):
-            lon[k * self.lons.size: (k + 1) * self.lons.size] = self.lons
+        lon = np.empty(self.parallels.size * self.meridians.size)
+        for k in range(self.parallels.size):
+            lon[k * self.meridians.size: (k + 1) * self.meridians.size] = self.meridians
 
         return lon
 
+    @property
     def latitude(self):
-        lat = np.empty(self.lats.size * self.lons.size)
-        for k in range(self.lats.size):
-            lat[k * self.lons.size: (k + 1) * self.lons.size] = self.lats[k]
+        lat = np.empty(self.parallels.size * self.meridians.size)
+        for k in range(self.parallels.size):
+            lat[k * self.meridians.size: (k + 1) * self.meridians.size] = self.parallels[k]
 
         return lat
 
+    @property
     def area(self):
-        areas = np.empty(self.lats.size * self.lons.size)
-        for k in range(self.lats.size):
-            areas[k * self.lons.size: (k + 1) * self.lons.size] = self.areas[k]
+        return self.__areas.flatten()
 
-        return areas
+    @property
+    def values(self):
+        return self.value_array.flatten()
+
+    @values.setter
+    def values(self, val):
+        if val is None:
+            self.value_array = None
+        elif isinstance(val, np.ndarray):
+            if val.size != self.point_count:
+                raise ValueError("unable to assign values of size {0:d} to grid with {1:d} points".format(val.size, self.point_count))
+            self.value_array = np.reshape(val, (self.parallels.size, self.meridians.size))
+        else:
+            raise ValueError("grid values must be either None or " + str(np.ndarray))
 
     def synthesis_matrix(self, min_degree, max_degree, kernel='potential', GM=3.9860044150e+14, R=6.3781363000e+06):
         """
@@ -296,10 +360,10 @@ class RegularGrid(Grid):
         A : ndarray(m, n)
             matrix that relates n spherical harmonic coefficients to m grid points
         """
-        point_count = self.lons.size * self.lats.size
+        point_count = self.meridians.size * self.parallels.size
         coefficient_count = (max_degree + 1) * (max_degree + 1) - min_degree * min_degree
 
-        colat = grates.utilities.colatitude(self.lats, self.semimajor_axis, self.flattening)
+        colat = grates.utilities.colatitude(self.parallels, self.semimajor_axis, self.flattening)
 
         P = grates.utilities.legendre_functions(max_degree, colat)
         grid_kernel = grates.kernel.get_kernel(kernel)
@@ -307,26 +371,26 @@ class RegularGrid(Grid):
         A = np.empty((point_count, coefficient_count))
 
         column_index = 0
-        r = grates.utilities.geocentric_radius(self.lats, self.semimajor_axis, self.flattening)
+        r = grates.utilities.geocentric_radius(self.parallels, self.semimajor_axis, self.flattening)
         for n in range(min_degree, max_degree + 1):
             row_idx, col_idx = grates.gravityfield.degree_indices(n)
             continuation = np.power(R / r, n + 1)
             kn = grid_kernel.inverse_coefficient(n, r, colat)
 
-            Pnm = P[:, row_idx, col_idx].T * continuation * kn * GM/R
+            Pnm = P[:, row_idx, col_idx].T * continuation * kn * GM / R
 
-            for k in range(self.lats.size):
-                A[k * self.lons.size: (k + 1) * self.lons.size, column_index] = Pnm[0, k]
+            for k in range(self.parallels.size):
+                A[k * self.meridians.size: (k + 1) * self.meridians.size, column_index] = Pnm[0, k]
             column_index += 1
 
             for m in range(1, n + 1):
-                cosml = np.cos(m * self.lons)
-                for k in range(self.lats.size):
-                    A[k * self.lons.size: (k + 1) * self.lons.size, column_index] = Pnm[m, k] * cosml
+                cosml = np.cos(m * self.meridians)
+                for k in range(self.parallels.size):
+                    A[k * self.meridians.size: (k + 1) * self.meridians.size, column_index] = Pnm[m, k] * cosml
 
-                sinml = np.sin(m * self.lons)
-                for k in range(self.lats.size):
-                    A[k * self.lons.size: (k + 1) * self.lons.size, column_index + 1] = Pnm[m, k] * sinml
+                sinml = np.sin(m * self.meridians)
+                for k in range(self.parallels.size):
+                    A[k * self.meridians.size: (k + 1) * self.meridians.size, column_index + 1] = Pnm[m, k] * sinml
                 column_index += 2
 
         return A
@@ -354,7 +418,7 @@ class RegularGrid(Grid):
         F : ndarray(n, m)
             matrix that relates m grid points to n spherical harmonic coefficients
         """
-        orders = np.empty((max_degree + 1)*(max_degree + 1) - min_degree*min_degree)
+        orders = np.empty((max_degree + 1) * (max_degree + 1) - min_degree * min_degree)
         is_cosine = np.zeros(orders.size, dtype=bool)
         index = 0
         for n in range(min_degree, max_degree + 1):
@@ -367,23 +431,19 @@ class RegularGrid(Grid):
                 orders[index + 1] = m
                 index += 2
 
-        areas = np.empty(self.lats.size*self.lons.size)
-        for k in range(self.lats.size):
-            areas[k * self.lons.size: (k + 1) * self.lons.size] = self.areas[k]
-
         A = self.synthesis_matrix(min_degree, max_degree, kernel, GM, R)
 
         column_index = np.logical_and(orders == 0, is_cosine)
         Ak = A[:, column_index]
-        A[:, column_index] = np.linalg.solve((Ak*areas[:, np.newaxis]).T@Ak, (Ak*areas[:, np.newaxis]).T).T
+        A[:, column_index] = np.linalg.solve((Ak * self.__areas[:, np.newaxis]).T @ Ak, (Ak * self.__areas[:, np.newaxis]).T).T
         for m in range(1, max_degree + 1):
             column_index = np.logical_and(orders == m, is_cosine)
             Ak = A[:, column_index]
-            A[:, column_index] = np.linalg.solve((Ak*areas[:, np.newaxis]).T @ Ak, (Ak * areas[:, np.newaxis]).T).T
+            A[:, column_index] = np.linalg.solve((Ak * self.__areas[:, np.newaxis]).T @ Ak, (Ak * self.__areas[:, np.newaxis]).T).T
 
             column_index = np.logical_and(orders == m, ~is_cosine)
             Ak = A[:, column_index]
-            A[:, column_index] = np.linalg.solve((Ak*areas[:, np.newaxis]).T @ Ak, (Ak * areas[:, np.newaxis]).T).T
+            A[:, column_index] = np.linalg.solve((Ak * self.__areas[:, np.newaxis]).T @ Ak, (Ak * self.__areas[:, np.newaxis]).T).T
 
         return A.T
 
@@ -397,17 +457,14 @@ class RegularGrid(Grid):
         cells : list of RectangularSurfaceElement instances
             Voronoi cell for each grid point as RectangularSurfaceElement instance
         """
-        dlon = np.diff(self.lons)
-        lon_edges = np.concatenate(([-np.pi], self.lons[0:-1] + 0.5 * dlon, [np.pi]))
-
-        dlat = np.diff(self.lats)
-        lat_edges = np.concatenate(([0.5 * np.pi], self.lats[0:-1] + 0.5 * dlat, [-0.5 * np.pi]))
+        lon_edges = np.concatenate(([-np.pi], self.meridians[0:-1] + 0.5 * np.diff(self.meridians), [np.pi]))
+        lat_edges = np.concatenate(([0.5 * np.pi], self.parallels[0:-1] + 0.5 * np.diff(self.parallels), [-0.5 * np.pi]))
 
         cells = []
-        for l in range(self.lats.size):
-            for k in range(self.lons.size):
-                cells.append(RectangularSurfaceElement(lon_edges[k], lat_edges[l+1], lon_edges[k + 1] - lon_edges[k],
-                                                       lat_edges[l] - lat_edges[l + 1]))
+        for parallel_index in range(self.parallels.size):
+            for meridian_index in range(self.meridians.size):
+                cells.append(RectangularSurfaceElement(lon_edges[meridian_index], lat_edges[parallel_index + 1], lon_edges[meridian_index + 1] - lon_edges[meridian_index],
+                                                       lat_edges[parallel_index] - lat_edges[parallel_index + 1]))
         return cells
 
 
@@ -416,31 +473,64 @@ class IrregularGrid(Grid):
     Base class for irregular point distributions on the ellipsoid. The points of an irregular grid are characterized
     by longitude/latitude pairs which cannot be represented by just parallels and meridians.
     """
-    def __init__(self, longitude, latitude, area=None, a=6378137.0, f=298.2572221010**-1):
+    def __init__(self, longitude, latitude, area_element=None, a=6378137.0, f=298.2572221010**-1):
 
-        self.lons = longitude
-        self.lats = latitude
-        self.areas = area
-        self.semimajor_axis = a
-        self.flattening = f
+        self.__lons = longitude
+        self.__lats = latitude
+        self.__areas = np.full(self.__lons.size, 4 * np.pi / self.__lons.size) if area_element is None else area_element
+        self.__a = a
+        self.__f = f
+
+        self.__values = None
+        self.epoch = None
 
     def copy(self):
-        pass
 
-    def is_regular(self):
-        return False
+        grid = IrregularGrid(self.__lons.copy(), self.__lats.copy(), self.__areas.copy(), self.semimajor_axis, self.flattening)
+        if self.__values is not None:
+            grid.values = self.values.copy()
+        grid.epoch = self.epoch
 
+        return grid
+
+    @property
+    def semimajor_axis(self):
+        return self.__a
+
+    @property
+    def flattening(self):
+        return self.__f
+
+    @property
     def longitude(self):
-        return self.lons
+        return self.__lons
 
+    @property
     def latitude(self):
-        return self.lats
+        return self.__lats
 
+    @property
     def area(self):
-        return self.areas
+        return self.__areas
 
+    @property
+    def values(self):
+        return self.__values
+
+    @values.setter
+    def values(self, val):
+        if val is None:
+            self.__values = None
+        elif isinstance(val, np.ndarray):
+            if val.size != self.point_count:
+                raise ValueError("unable to assign values of size {0:d} to grid with {1:d} points".format(val.size, self.point_count))
+            self.__values = val
+        else:
+            raise ValueError("grid values must be either None or " + str(np.ndarray))
+
+    @property
     def point_count(self):
-        return self.lons.size
+        return self.__lons.size
 
     def synthesis_matrix(self, min_degree, max_degree, kernel='potential', GM=3.9860044150e+14, R=6.3781363000e+06):
         """
@@ -464,9 +554,9 @@ class IrregularGrid(Grid):
         A : ndarray(m, n)
             matrix that relates n spherical harmonic coefficients to m grid points
         """
-        colat = grates.utilities.colatitude(self.lats, self.semimajor_axis, self.flattening)
-        r = grates.utilities.geocentric_radius(self.lats, self.semimajor_axis, self.flattening)
-        Ynm = grates.utilities.spherical_harmonics(max_degree, colat, self.lons)
+        colat = grates.utilities.colatitude(self.__lats, self.semimajor_axis, self.flattening)
+        r = grates.utilities.geocentric_radius(self.__lats, self.semimajor_axis, self.flattening)
+        Ynm = grates.utilities.spherical_harmonics(max_degree, colat, self.__lons)
 
         grid_kernel = grates.kernel.get_kernel(kernel)
         for n in range(min_degree, max_degree + 1):
@@ -498,14 +588,14 @@ class IrregularGrid(Grid):
         F : ndarray(n, m)
             matrix that relates m grid points to n spherical harmonic coefficients
         """
-        colat = grates.utilities.colatitude(self.lats, self.semimajor_axis, self.flattening)
-        r = grates.utilities.geocentric_radius(self.lats, self.semimajor_axis, self.flattening)
-        Ynm = grates.utilities.spherical_harmonics(max_degree, colat, self.lons)
+        colat = grates.utilities.colatitude(self.__lats, self.semimajor_axis, self.flattening)
+        r = grates.utilities.geocentric_radius(self.__lats, self.semimajor_axis, self.flattening)
+        Ynm = grates.utilities.spherical_harmonics(max_degree, colat, self.__lons)
 
         grid_kernel = grates.kernel.get_kernel(kernel)
         for n in range(min_degree, max_degree + 1):
             row_idx, col_idx = grates.gravityfield.degree_indices(n)
-            continuation = np.power(r / R, n + 1) * R / GM / (4*np.pi) * self.areas
+            continuation = np.power(r / R, n + 1) * R / GM / (4 * np.pi) * self.__areas
             Ynm[:, row_idx, col_idx] *= (continuation * grid_kernel.coefficient(n, r, colat))[:, np.newaxis]
 
         return grates.utilities.ravel_coefficients(Ynm, min_degree, max_degree).T
@@ -527,7 +617,7 @@ class IrregularGrid(Grid):
 
         sv = scipy.spatial.SphericalVoronoi(X, radius=1)
         vertex_lon = np.arctan2(sv.vertices[:, 1], sv.vertices[:, 0])
-        vertex_lat = np.arctan2(sv.vertices[:, 2], (1-self.flattening)**2 * np.sqrt(1 - sv.vertices[:, 2]**2))
+        vertex_lat = np.arctan2(sv.vertices[:, 2], (1 - self.flattening)**2 * np.sqrt(1 - sv.vertices[:, 2]**2))
 
         cells = []
         for region in sv.regions:
@@ -538,7 +628,7 @@ class IrregularGrid(Grid):
             e /= np.sqrt(np.sum(e**2))
             n = np.cross(e, central_point)
 
-            azimuth = np.arctan2((points@e[:, np.newaxis]).flatten(), (points@n[:, np.newaxis]).flatten())
+            azimuth = np.arctan2((points @ e[:, np.newaxis]).flatten(), (points @ n[:, np.newaxis]).flatten())
             idx = np.argsort(-azimuth)
 
             lon = vertex_lon[region]
@@ -570,24 +660,23 @@ class GeographicGrid(RegularGrid):
     """
     def __init__(self, dlon=0.5, dlat=0.5, a=6378137.0, f=298.2572221010**-1):
 
-        nlons = 360 / dlon
-        nlats = 180 / dlat
+        self.__dlon = dlon
+        self.__dlat = dlat
 
-        self.lons = np.linspace(-np.pi+dlon/180*np.pi * 0.5, np.pi-dlon/180*np.pi*0.5, int(nlons))
-        self.lats = -np.linspace(-np.pi*0.5 + dlat/180*np.pi * 0.5, np.pi*0.5 - dlat/180*np.pi*0.5, int(nlats))
+        nlons = 360 / self.__dlon
+        nlats = 180 / self.__dlat
 
-        self.semimajor_axis = a
-        self.flattening = f
-        self.values = np.empty((0, 0))
-        self.epoch = None
-        self.areas = 2.0*dlon/180*np.pi*np.sin(dlat*0.5/180*np.pi)*np.cos(self.lats)
+        meridians = np.linspace(-np.pi + dlon / 180 * np.pi * 0.5, np.pi - dlon / 180 * np.pi * 0.5, int(nlons))
+        parallels = -np.linspace(-np.pi * 0.5 + dlat / 180 * np.pi * 0.5, np.pi * 0.5 - dlat / 180 * np.pi * 0.5, int(nlats))
+        areas = np.tile(2.0 * dlon / 180 * np.pi * np.sin(dlat * 0.5 / 180 * np.pi) * np.cos(parallels)[:, np.newaxis], (1, meridians.size))
+
+        super(GeographicGrid, self).__init__(meridians, parallels, areas, a, f)
 
     def copy(self):
-        """Deep copy of GeographicGrid instance."""
-        grid = GeographicGrid(a=self.semimajor_axis, f=self.flattening)
-        grid.lons = self.lons.copy()
-        grid.lats = self.lats.copy()
-        grid.values = self.values.copy()
+
+        grid = GeographicGrid(self.__dlon, self.__dlat, self.semimajor_axis, self.flattening)
+        if self.values is not None:
+            grid.values = self.values.copy()
         grid.epoch = self.epoch
 
         return grid
@@ -613,22 +702,23 @@ class GaussGrid(RegularGrid):
 
         zeros, weights, _ = roots_legendre(parallel_count, mu=True)
 
-        dlon = np.pi/parallel_count
-        self.lons = np.linspace(-np.pi + dlon*0.5, np.pi - dlon*0.5,  2 * parallel_count)
+        dlon = np.pi / parallel_count
+        meridians = np.linspace(-np.pi + dlon * 0.5, np.pi - dlon * 0.5, 2 * parallel_count)
 
         cosine_theta = -zeros
         sine_theta = np.sqrt(1 - cosine_theta**2)
 
-        self.lats = np.arctan2(cosine_theta, (1-f)**2*sine_theta)
-        self.semimajor_axis = a
-        self.flattening = f
-        self.areas = dlon * weights
-        self.epoch = None
+        parallels = np.arctan2(cosine_theta, (1 - f)**2 * sine_theta)
+
+        areas = np.tile(dlon * weights[:, np.newaxis], (1, meridians.size))
+
+        super(GaussGrid, self).__init__(meridians, parallels, areas, a, f)
 
     def copy(self):
         """Deep copy of a GaussGrid instance."""
-        grid = GaussGrid(self.lats.size, self.semimajor_axis, self.flattening)
-        grid.values = self.values.copy()
+        grid = GaussGrid(self.parallels.size, self.semimajor_axis, self.flattening)
+        if self.value_array is not None:
+            grid.values = self.values.copy()
         grid.epoch = self.epoch
 
         return grid
@@ -649,7 +739,7 @@ class ReuterGrid(IrregularGrid):
     """
     def __init__(self, level, a=6378137.0, f=298.2572221010**-1):
 
-        dlat = np.pi/level
+        dlat = np.pi / level
 
         self.__parallels = np.empty(level + 1)
         self.__longitudes = np.empty(self.__parallels.size, dtype=object)
@@ -660,12 +750,12 @@ class ReuterGrid(IrregularGrid):
         for k in range(1, level):
 
             theta = k * dlat
-            self.__parallels[k] = np.arctan2(np.cos(theta), (1-f)**2*np.sin(theta))
+            self.__parallels[k] = np.arctan2(np.cos(theta), (1 - f)**2 * np.sin(theta))
 
-            point_count = int(2*np.pi/np.arccos((np.cos(dlat)-np.cos(theta)**2)/(np.sin(theta)**2)))
+            point_count = int(2 * np.pi / np.arccos((np.cos(dlat) - np.cos(theta)**2) / (np.sin(theta)**2)))
             self.__longitudes[k] = np.empty(point_count)
             for i in range(point_count):
-                self.__longitudes[k][i] = np.mod((i+1.5) * 2*np.pi/point_count+np.pi, 2*np.pi)-np.pi
+                self.__longitudes[k][i] = np.mod((i + 1.5) * 2 * np.pi / point_count + np.pi, 2 * np.pi) - np.pi
 
         self.__parallels[-1] = -0.5 * np.pi
         self.__longitudes[-1] = np.zeros(1)
@@ -684,15 +774,13 @@ class ReuterGrid(IrregularGrid):
             areas.append(np.full(self.__longitudes[k].size, self.__areas[k]))
 
         super(ReuterGrid, self).__init__(np.concatenate(lons), np.concatenate(lats), np.concatenate(areas), a, f)
-
-        self.values = np.empty(self.lons.shape)
-        self.epoch = None
         self.__level = level
 
     def copy(self):
         """Deep copy of a ReuterGrid instance."""
         grid = ReuterGrid(self.__level, self.semimajor_axis, self.flattening)
-        grid.values = self.values.copy()
+        if self.__values is not None:
+            grid.values = self.values.copy()
         grid.epoch = self.epoch
 
         return grid
@@ -705,20 +793,18 @@ class GeodesicGrid(IrregularGrid):
     def __init__(self, level, a=6378137.0, f=298.2572221010**-1):
 
         ratio = np.pi * 0.5 - np.arccos(
-            (np.cos(72 * np.pi/180) + np.cos(72 * np.pi/180) * np.cos(72 * np.pi/180)) /
-            (np.sin(72 * np.pi/180) * np.sin(72 * np.pi/180)))
+            (np.cos(72 * np.pi / 180) + np.cos(72 * np.pi / 180) * np.cos(72 * np.pi / 180)) / (np.sin(72 * np.pi / 180) * np.sin(72 * np.pi / 180)))
 
-        vertex_lons = np.array([0, 0, 72, 144, 216, 288, 36, 108, 180, 252, 324, 0]) * np.pi/180
+        vertex_lons = np.array([0, 0, 72, 144, 216, 288, 36, 108, 180, 252, 324, 0]) * np.pi / 180
         vertex_lats = np.empty(vertex_lons.size)
         vertex_lats[0:6] = ratio
         vertex_lats[6:] = -ratio
         vertex_lats[0] = 0.5 * np.pi
         vertex_lats[-1] = - 0.5 * np.pi
 
-        vertices = np.vstack((np.cos(vertex_lons)*np.cos(vertex_lats), np.sin(vertex_lons)*np.cos(vertex_lats),
-                              np.sin(vertex_lats))).T
+        vertices = np.vstack((np.cos(vertex_lons) * np.cos(vertex_lats), np.sin(vertex_lons) * np.cos(vertex_lats), np.sin(vertex_lats))).T
 
-        points_cartesian = [np.array(p)/np.sqrt(np.sum(np.asarray(p)**2)) for p in vertices]
+        points_cartesian = [np.array(p) / np.sqrt(np.sum(np.asarray(p)**2)) for p in vertices]
 
         triangles = np.array([[0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 5], [0, 5, 1], [2, 1, 6], [3, 2, 7], [4, 3, 8],
                               [5, 4, 9], [1, 5, 10], [6, 7, 2], [7, 8, 3], [8, 9, 4], [9, 10, 5], [10, 6, 1],
@@ -733,10 +819,10 @@ class GeodesicGrid(IrregularGrid):
 
         def subdivide_edge(p1, p2, level):
 
-            step_angle = np.arccos(np.inner(p1, p2))/(level + 1)
+            step_angle = np.arccos(np.inner(p1, p2)) / (level + 1)
             vec = normalize(np.cross(np.cross(p1, p2), p1))
 
-            return [np.cos((i + 1) * step_angle) * p1 + np.sin((i + 1)*step_angle) * vec for i in range(level)]
+            return [np.cos((i + 1) * step_angle) * p1 + np.sin((i + 1) * step_angle) * vec for i in range(level)]
 
         def subdivide_triangle(p1, p2, p3, level):
 
@@ -748,9 +834,9 @@ class GeodesicGrid(IrregularGrid):
             for i in range(1, level):
                 for k in range(i):
 
-                    e13 = np.cross(edge12[i], edge31[level-1-i])
-                    e12 = np.cross(edge12[i-1-k], edge23[level-i+k])
-                    e23 = np.cross(edge23[k], edge31[level-1-k])
+                    e13 = np.cross(edge12[i], edge31[level - 1 - i])
+                    e12 = np.cross(edge12[i - 1 - k], edge23[level - i + k])
+                    e23 = np.cross(edge23[k], edge31[level - 1 - k])
 
                     v1 = np.cross(e13, e12)
                     v2 = np.cross(e23, e13)
@@ -773,15 +859,13 @@ class GeodesicGrid(IrregularGrid):
         lats = np.arctan2(xyz[:, 2], (1 - f) ** 2 * np.sqrt(1 - xyz[:, 2] ** 2))
 
         super(GeodesicGrid, self).__init__(lons, lats, np.full(lats.size, 4 * np.pi / lats.size), a, f)
-
-        self.values = np.empty(self.lons.shape)
-        self.epoch = None
         self.__level = level
 
     def copy(self):
         """Deep copy of a GeodesicGrid instance."""
         grid = GeodesicGrid(self.__level, self.semimajor_axis, self.flattening)
-        grid.values = self.values.copy()
+        if self.__values is not None:
+            grid.values = self.values.copy()
         grid.epoch = self.epoch
 
         return grid
@@ -834,9 +918,6 @@ class GreatCircleSegment(IrregularGrid):
         lats = np.arctan2(x[2, :], (1 - f) ** 2 * np.sqrt(x[0, :] ** 2 + x[1, :] ** 2))
 
         super(GreatCircleSegment, self).__init__(lons, lats, None, a, f)
-
-        self.values = np.empty(self.lons.shape)
-        self.epoch = None
         self.__central_longitude = central_longitude
         self.__central_latitude = central_latitude
         self.__azimuth = azimuth
@@ -847,7 +928,8 @@ class GreatCircleSegment(IrregularGrid):
         """Deep copy of a GreatCircleSegment instance."""
         grid = GreatCircleSegment(self.__central_longitude, self.__central_latitude, self.__azimuth, self.__nsteps,
                                   self.__max_psi, self.semimajor_axis, self.flattening)
-        grid.values = self.values.copy()
+        if self.__values is not None:
+            grid.values = self.values.copy()
         grid.epoch = self.epoch
 
         return grid
@@ -1002,7 +1084,7 @@ def spherical_pip(polygon, lon, lat, a=6378137.0, f=298.2572221010**-1):
     spherical_cap = -cartesian_coords @ antipode[:, np.newaxis]
     min_cos_angle = np.min(spherical_cap, axis=0)
 
-    cartesian_coords = np.append(cartesian_coords,  cartesian_coords[0][np.newaxis, :], axis=0)
+    cartesian_coords = np.append(cartesian_coords, cartesian_coords[0][np.newaxis, :], axis=0)
 
     xyz = ellipsoidal2cartesian(lon, lat, h=0, a=a, f=f)
     xyz /= np.sqrt(np.sum(xyz**2, axis=1))[:, np.newaxis]
@@ -1028,8 +1110,8 @@ def spherical_pip(polygon, lon, lat, a=6378137.0, f=298.2572221010**-1):
         s3 = np.sum(np.cross(b0, q) * t, axis=1)
         s4 = np.sum(np.cross(b1, q) * t, axis=1)
 
-        is_crossing = np.logical_or((np.sign(-s1)+np.sign(s2)+np.sign(-s3)+np.sign(s4)) == -4,
-                                    (np.sign(-s1)+np.sign(s2)+np.sign(-s3)+np.sign(s4)) == 4)
+        is_crossing = np.logical_or((np.sign(-s1) + np.sign(s2) + np.sign(-s3) + np.sign(s4)) == -4,
+                                    (np.sign(-s1) + np.sign(s2) + np.sign(-s3) + np.sign(s4)) == 4)
         crossing_count[is_crossing] += 1
 
     mask = inside_polygon.copy()
@@ -1068,7 +1150,7 @@ def spherical_pib(polygon, lon, lat, buffer, a=6378137.0, f=298.2572221010**-1):
     xyz /= np.sqrt(np.sum(xyz ** 2, axis=1))[:, np.newaxis]
 
     spherical_cap = -cartesian_coords @ antipode[:, np.newaxis]
-    min_cos_angle = np.cos(np.arccos(np.min(spherical_cap, axis=0)) + buffer/a)
+    min_cos_angle = np.cos(np.arccos(np.min(spherical_cap, axis=0)) + buffer / a)
 
     inside_cap = (-xyz @ antipode[:, np.newaxis]).flatten() >= min_cos_angle
     remaining_index = np.where(inside_cap)[0]
@@ -1097,7 +1179,7 @@ def spherical_pib(polygon, lon, lat, buffer, a=6378137.0, f=298.2572221010**-1):
 
         within_edge = np.logical_and(np.logical_and(np.inner(np.cross(b0, p), np.cross(b0, b1)) >= 0,
                                      np.inner(np.cross(b1, p), np.cross(b1, b0)) >= 0),
-                                     np.cos(buffer / a) <= np.sum(p*xyz[remaining_index, :], axis=1))
+                                     np.cos(buffer / a) <= np.sum(p * xyz[remaining_index, :], axis=1))
         inside_buffer[remaining_index] = within_edge
         remaining_index = remaining_index[~within_edge]
 
@@ -1127,16 +1209,15 @@ def spherical_distance(lon1, lat1, lon2, lat2, r=6378136.3):
     d : ndarray(m,), ndarray(m,n)
         spherical distance between points (lon1, lat1) and (lon2, lat2) in meters
     """
-    return np.arctan2(np.sqrt((np.cos(lat2)*np.sin(lon2 - lon1))**2 +
-                              (np.cos(lat1)*np.sin(lat2) - np.sin(lat1)*np.cos(lat2)*np.cos(lon2-lon1))**2),
-                      np.sin(lat1) * np.sin(lat2) + np.cos(lat1) * np.cos(lat2) * np.cos(lon2 - lon1))*r
+    return np.arctan2(np.sqrt((np.cos(lat2) * np.sin(lon2 - lon1))**2 + (np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(lon2 - lon1))**2),
+                      np.sin(lat1) * np.sin(lat2) + np.cos(lat1) * np.cos(lat2) * np.cos(lon2 - lon1)) * r
 
 
 def ellipsoidal_distance(lon1, lat1, lon2, lat2, a=6378137.0, f=298.2572221010**-1):
     """
     Compute the distance between points (lon1, lat1) and (lon2, lat2) on an ellipsoid with
     semi-major axis a and flattening f.
-    
+
     Parameters
     ----------
     lon1 : float, array_like(m,), array_like(m,n)
@@ -1176,8 +1257,8 @@ def ellipsoidal_distance(lon1, lat1, lon2, lat2, a=6378137.0, f=298.2572221010**
     P = (beta1 + beta2) * 0.5
     Q = (beta2 - beta1) * 0.5
 
-    X = (sigma[L] - np.sin(sigma[L])) * ((np.sin(P[L]) * np.cos(Q[L])) / np.cos(sigma[L]*0.5))**2
-    Y = (sigma[L] + np.sin(sigma[L])) * ((np.cos(P[L]) * np.sin(Q[L])) / np.sin(sigma[L]*0.5))**2
+    X = (sigma[L] - np.sin(sigma[L])) * ((np.sin(P[L]) * np.cos(Q[L])) / np.cos(sigma[L] * 0.5))**2
+    Y = (sigma[L] + np.sin(sigma[L])) * ((np.cos(P[L]) * np.sin(Q[L])) / np.sin(sigma[L] * 0.5))**2
 
     sigma[L] -= 0.5 * f * (X + Y)
     return a * sigma
@@ -1186,7 +1267,7 @@ def ellipsoidal_distance(lon1, lat1, lon2, lat2, a=6378137.0, f=298.2572221010**
 def ellipsoidal2cartesian(lon, lat, h=0, a=6378137.0, f=298.2572221010**-1):
     """
     Compute 3D cartesian coordinates from ellipsoidal (geographic) longitude, latitude and height.
-    
+
     Parameters
     ----------
     lon : float, ndarray(m,)

@@ -345,12 +345,12 @@ class PotentialCoefficients:
         """
         kernel = grates.kernel.get_kernel(kernel)
 
-        if grid.is_regular():
-            gridded_values = np.zeros((grid.lats.size, grid.lons.size))
+        if issubclass(type(grid), grates.grid.RegularGrid):
+            gridded_values = np.zeros((grid.parallels.size, grid.meridians.size))
             orders = np.arange(self.max_degree() + 1)[:, np.newaxis]
 
-            colat = grates.utilities.colatitude(grid.lats, grid.semimajor_axis, grid.flattening)
-            r = grates.utilities.geocentric_radius(grid.lats, grid.semimajor_axis, grid.flattening)
+            colat = grates.utilities.colatitude(grid.parallels, grid.semimajor_axis, grid.flattening)
+            r = grates.utilities.geocentric_radius(grid.parallels, grid.semimajor_axis, grid.flattening)
             P = grates.utilities.legendre_functions(self.max_degree(), colat)
             P *= self.anm
 
