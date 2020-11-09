@@ -12,7 +12,6 @@ import pkg_resources
 import numpy as np
 import abc
 import scipy.signal as sig
-import scipy.linalg as la
 
 
 class SpatialFilter(metaclass=abc.ABCMeta):
@@ -233,10 +232,16 @@ class DDK(OrderWiseFilter):
 
         Returns
         -------
-        block_matrix : object array
+        block_matrix : list of ndarrays
             orderwise matrix blocks (alternating cosine/sine per order, order 0 only contains cosine coefficients)
         """
-        return np.load(pkg_resources.resource_filename('grates', 'data/ddk_normals.npz'), allow_pickle=True)['arr_0']
+        with np.load(pkg_resources.resource_filename('grates', 'data/ddk_normal_blocks.npz')) as f:
+            blocks = [f['order0_cos']]
+            for m in range(1, 120 + 1):
+                blocks.append(f['order{0:d}_cos'.format(m)])
+                blocks.append(f['order{0:d}_sin'.format(m)])
+
+            return blocks
 
     @staticmethod
     def normal_equation_matrix():
@@ -267,11 +272,11 @@ class DDK(OrderWiseFilter):
         return normal_matrix[4:, 4:]
 
 
-
-class BlockedVDK(OrderWiseFilter):
+class BlockedNormalsVDK(OrderWiseFilter):
     """
     Implements a blocked version of the VDK filter [1]_. Instead of using the full normal equation matrix, the DDK filter [2]_
-    correlation structure is used.
+    correlation structure is used. This means that only correlations between spherical harmonic coefficients with the same
+    order and trigonometric function (sine/cosine) are considered.
 
     Parameters
     ----------
@@ -342,7 +347,7 @@ class BlockedVDK(OrderWiseFilter):
             m = max_degree + 1 - normals_block.shape[0]
             array.append(np.linalg.solve(normals_block + np.diag(weights[m:]), normals_block))
 
-        super(BlockedVDK, self).__init__(array)
+        super(BlockedNormalsVDK, self).__init__(array)
 
 
 class VDK(SpatialFilter):
