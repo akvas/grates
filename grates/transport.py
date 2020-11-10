@@ -44,9 +44,9 @@ class BathymetryGridded(Bathymetry):
     """
     def __init__(self, longitude, latitude, elevation, basin=None, a=6378137.0, f=298.2572221010**-1):
 
-        self.__longitude = longitude
-        self.__latitude = latitude
-        self.__elevation = elevation
+        self.__longitude = np.asarray(longitude)
+        self.__latitude = np.asarray(latitude)
+        self.__elevation = np.asarray(elevation)
         self.__a = a
         self.__f = f
         self.__basin = basin
