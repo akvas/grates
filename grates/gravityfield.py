@@ -345,12 +345,12 @@ class PotentialCoefficients:
         """
         kernel = grates.kernel.get_kernel(kernel)
 
-        if grid.is_regular():
-            gridded_values = np.zeros((grid.lats.size, grid.lons.size))
+        if isinstance(grid, grates.grid.RegularGrid):
+            gridded_values = np.zeros((grid.parallels.size, grid.meridians.size))
             orders = np.arange(self.max_degree() + 1)[:, np.newaxis]
 
-            colat = grates.utilities.colatitude(grid.lats, grid.semimajor_axis, grid.flattening)
-            r = grates.utilities.geocentric_radius(grid.lats, grid.semimajor_axis, grid.flattening)
+            colat = grates.utilities.colatitude(grid.parallels, grid.semimajor_axis, grid.flattening)
+            r = grates.utilities.geocentric_radius(grid.parallels, grid.semimajor_axis, grid.flattening)
             P = grates.utilities.legendre_functions(self.max_degree(), colat)
             P *= self.anm
 
@@ -359,11 +359,11 @@ class PotentialCoefficients:
                 continuation = np.power(self.R / r, n + 1)
                 kn = kernel.inverse_coefficient(n, r, colat)
 
-                CS = np.vstack((np.cos(orders[0:n+1] * grid.lons), np.sin(orders[1:n+1] * grid.lons)))
-                gridded_values += (P[:, row_idx, col_idx] * (continuation*kn)[:, np.newaxis]) @ CS
+                CS = np.vstack((np.cos(orders[0:n+1] * grid.meridians), np.sin(orders[1:n+1] * grid.meridians)))
+                gridded_values += (P[:, row_idx, col_idx] * (continuation * kn)[:, np.newaxis]) @ CS
 
             output_grid = grid.copy()
-            output_grid.values = gridded_values*(self.GM/self.R)
+            output_grid.values = gridded_values * (self.GM / self.R)
             output_grid.epoch = self.epoch
         else:
             raise NotImplementedError('Propagation to arbitrary point distributions is not yet implemented.')
@@ -723,15 +723,11 @@ def gridded_rms(temporal_gravityfield, epochs, kernel='ewh', base_grid=grates.gr
     rms_grid : grates.grid.Grid
         gridded RMS values
     """
-    rms_values = None
+    rms_values = np.zeros(base_grid.point_count)
 
     for t in epochs:
         gf = temporal_gravityfield.evaluate_at(t)
-        print(t)
-        if rms_values is None:
-            rms_values = gf.to_grid(base_grid, kernel=kernel).values**2
-        else:
-            rms_values += gf.to_grid(base_grid, kernel=kernel).values**2
+        rms_values += gf.to_grid(base_grid, kernel=kernel).values**2
 
     rms_grid = base_grid.copy()
     rms_grid.values = np.sqrt(rms_values / len(epochs))
