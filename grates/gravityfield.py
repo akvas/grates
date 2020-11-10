@@ -393,6 +393,37 @@ class PotentialCoefficients:
         self.anm = grates.utilities.unravel_coefficients(x)
 
 
+class TimeVariableGravityField:
+    """
+    Compose a time variable gravity field from multiple constituents, for example trend, annual cycle and an irregular time series.
+    All constituents should be of the same type, or at least summable, and implement an evaluate_at method.
+
+    Parameters
+    ----------
+    constituents : list of gravityfield_like
+        multiple time variable gravity fields
+    """
+    def __init__(self, constituents):
+
+        self.constituents = constituents
+
+    def evaluate_at(self, epoch):
+        """
+        Evaluate the time variable gravity field at a specfific epoch.
+
+        Parameters
+        ----------
+        epoch : dt.datetime
+            epoch where the gravity field is evaluated
+
+        Returns
+        -------
+        gravity_field : gravityfield_like
+            sum of all constituent evaluated at the epoch
+        """
+        return np.sum([c.evaluate_at(epoch) for c in self.constituents])
+
+
 class TimeSeries:
     """
     Class representation of a gravity field time series.
