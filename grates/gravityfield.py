@@ -703,7 +703,37 @@ class Oscillation:
         return self.__data_cosine * np.cos(2 * np.pi *dt) + self.__data_sine * np.sin(2 * np.pi * dt)
 
 
+def gridded_rms(temporal_gravityfield, epochs, kernel='ewh', base_grid=grates.grid.GeographicGrid()):
+    """
+    Propagate a time variable gravity field to space domain an compute the RMS over all epochs.
 
+    Parameters
+    ----------
+    temporal_gravityfield : time variable gravity field
+        the time variable gravity field to be evaluated
+    epoch : list of dt.datetime
+        epochs at which the gravity field is evaluated
+    kernel : str
+        kernel of the grid values (default: equivalent water height)
+    base_grid : grates.grid.Grid
+        grid to which the gravity field is propagated
 
+    Returns
+    -------
+    rms_grid : grates.grid.Grid
+        gridded RMS values
+    """
+    rms_values = None
 
+    for t in epochs:
+        gf = temporal_gravityfield.evaluate_at(t)
+        print(t)
+        if rms_values is None:
+            rms_values = gf.to_grid(base_grid, kernel=kernel).values**2
+        else:
+            rms_values += gf.to_grid(base_grid, kernel=kernel).values**2
 
+    rms_grid = base_grid.copy()
+    rms_grid.values = np.sqrt(rms_values / len(epochs))
+
+    return rms_grid
