@@ -68,7 +68,7 @@ class BathymetryGridded(Bathymetry):
 
 class Transport(metaclass=abc.ABCMeta):
     """
-    Base class for meridional transport. Derived classes must implement a compute which depends on 
+    Base class for meridional transport. Derived classes must implement a compute method which depends on
     a 1d latitude array, a 1d depth_bounds array, and gravity field time series.
     """
     @abc.abstractmethod
