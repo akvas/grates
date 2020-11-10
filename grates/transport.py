@@ -10,7 +10,6 @@ import numpy as np
 import scipy.integrate
 import grates.kernel
 import grates.utilities
-import netCDF4
 import grates.grid
 
 
