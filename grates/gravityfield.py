@@ -590,7 +590,18 @@ class TimeSeries:
 
 
 class Trend:
+    """
+    Linear gravity field trend.
 
+    Parameters
+    ----------
+    gravity_field : gravityfield_like
+        trend coefficients as gravity field
+    reference_epoch : dt.datetime
+        reference epoch of the trend coefficients
+    time_scale : float
+        time unit of the trend coefficients in days (365.25 corresponds to potential/year, 1.0 corresponds to potential/day and so on)
+    """
     def __init__(self, gravity_field, reference_epoch, time_scale=365.25):
 
         self.__data = gravity_field.copy()
