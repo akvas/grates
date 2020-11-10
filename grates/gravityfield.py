@@ -609,27 +609,67 @@ class Trend:
         self.__time_scale = time_scale
 
     def evaluate_at(self, epoch):
+        """
+        Evaluate the trend at a specific epoch.
 
-        dt = (epoch - self.__reference_epoch).total_seconds()/(86400*self.__time_scale)
+        .. math:: V(t) = V \cdot (t - t_0)
 
-        return self.__data*dt
+        Parameters
+        ----------
+        epoch : dt.datetime
+            epoch where the trend is evaluated
+
+        Returns
+        -------
+        gravity_field : gravityfield_like
+            trend evaluated at epoch t
+        """
+        dt = (epoch - self.__reference_epoch).total_seconds() / (86400 * self.__time_scale)
+
+        return self.__data * dt
 
 
 class Oscillation:
+    """
+    Sinosoidal oscilattion of gravity field values.
 
-    def __init__(self, gravity_field_cosine, gravity_field_sine, period, reference_epoch, time_scale=365.25):
+    Parameters
+    ----------
+    gravity_field_cosine : gravityfield_like
+        cosine coefficients as gravity field
+    gravity_field_sine : gravityfield_like
+        sine coefficients as gravity field
+    period : float
+        oscillation period in days
+    reference_epoch : dt.datetime
+        reference epoch of the trend coefficients
+    """
+    def __init__(self, gravity_field_cosine, gravity_field_sine, period, reference_epoch):
 
         self.__data_cosine = gravity_field_cosine.copy()
         self.__data_sine = gravity_field_sine.copy()
         self.__reference_epoch = reference_epoch
         self.__period = period
-        self.__time_scale = time_scale
 
     def evaluate_at(self, epoch):
+        """
+        Evaluate the oscillation at a specific epoch.
 
-        dt = (epoch - self.__reference_epoch).total_seconds()/(86400*self.__time_scale) *self.__period
+        .. math:: V(t) = V_c \cdot \cos 2\pi \frac{(t - t_0)}{T} + V_s \sin 2\pi \frac{(t - t_0)}{T}
 
-        return self.__data_cosine*np.cos(2*np.pi*dt) + self.__data_sine*np.sin(2*np.pi*dt)
+        Parameters
+        ----------
+        epoch : dt.datetime
+            epoch where the trend is evaluated
+
+        Returns
+        -------
+        gravity_field : gravityfield_like
+            oscillation evaluated at epoch t
+        """
+        dt = (epoch - self.__reference_epoch).total_seconds() / (86400 * self.__period)
+
+        return self.__data_cosine * np.cos(2 * np.pi *dt) + self.__data_sine * np.sin(2 * np.pi * dt)
 
 
 
