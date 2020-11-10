@@ -10,7 +10,6 @@ import numpy as np
 import scipy.integrate
 import grates.kernel
 import grates.utilities
-import netCDF4
 import grates.grid
 
 
@@ -45,9 +44,9 @@ class BathymetryGridded(Bathymetry):
     """
     def __init__(self, longitude, latitude, elevation, basin=None, a=6378137.0, f=298.2572221010**-1):
 
-        self.__longitude = longitude
-        self.__latitude = latitude
-        self.__elevation = elevation
+        self.__longitude = np.asarray(longitude)
+        self.__latitude = np.asarray(latitude)
+        self.__elevation = np.asarray(elevation)
         self.__a = a
         self.__f = f
         self.__basin = basin
@@ -69,7 +68,7 @@ class BathymetryGridded(Bathymetry):
 
 class Transport(metaclass=abc.ABCMeta):
     """
-    Base class for meridional transport. Derived classes must implement a compute which depends on 
+    Base class for meridional transport. Derived classes must implement a compute method which depends on
     a 1d latitude array, a 1d depth_bounds array, and gravity field time series.
     """
     @abc.abstractmethod

@@ -345,12 +345,12 @@ class PotentialCoefficients:
         """
         kernel = grates.kernel.get_kernel(kernel)
 
-        if grid.is_regular():
-            gridded_values = np.zeros((grid.lats.size, grid.lons.size))
+        if isinstance(grid, grates.grid.RegularGrid):
+            gridded_values = np.zeros((grid.parallels.size, grid.meridians.size))
             orders = np.arange(self.max_degree() + 1)[:, np.newaxis]
 
-            colat = grates.utilities.colatitude(grid.lats, grid.semimajor_axis, grid.flattening)
-            r = grates.utilities.geocentric_radius(grid.lats, grid.semimajor_axis, grid.flattening)
+            colat = grates.utilities.colatitude(grid.parallels, grid.semimajor_axis, grid.flattening)
+            r = grates.utilities.geocentric_radius(grid.parallels, grid.semimajor_axis, grid.flattening)
             P = grates.utilities.legendre_functions(self.max_degree(), colat)
             P *= self.anm
 
@@ -359,11 +359,11 @@ class PotentialCoefficients:
                 continuation = np.power(self.R / r, n + 1)
                 kn = kernel.inverse_coefficient(n, r, colat)
 
-                CS = np.vstack((np.cos(orders[0:n+1] * grid.lons), np.sin(orders[1:n+1] * grid.lons)))
-                gridded_values += (P[:, row_idx, col_idx] * (continuation*kn)[:, np.newaxis]) @ CS
+                CS = np.vstack((np.cos(orders[0:n+1] * grid.meridians), np.sin(orders[1:n+1] * grid.meridians)))
+                gridded_values += (P[:, row_idx, col_idx] * (continuation * kn)[:, np.newaxis]) @ CS
 
             output_grid = grid.copy()
-            output_grid.values = gridded_values*(self.GM/self.R)
+            output_grid.values = gridded_values * (self.GM / self.R)
             output_grid.epoch = self.epoch
         else:
             raise NotImplementedError('Propagation to arbitrary point distributions is not yet implemented.')
@@ -391,6 +391,37 @@ class PotentialCoefficients:
             coefficients in vector representation
         """
         self.anm = grates.utilities.unravel_coefficients(x)
+
+
+class TimeVariableGravityField:
+    """
+    Compose a time variable gravity field from multiple constituents, for example trend, annual cycle and an irregular time series.
+    All constituents should be of the same type, or at least summable, and implement an evaluate_at method.
+
+    Parameters
+    ----------
+    constituents : list of gravityfield_like
+        multiple time variable gravity fields
+    """
+    def __init__(self, constituents):
+
+        self.constituents = constituents
+
+    def evaluate_at(self, epoch):
+        """
+        Evaluate the time variable gravity field at a specfific epoch.
+
+        Parameters
+        ----------
+        epoch : dt.datetime
+            epoch where the gravity field is evaluated
+
+        Returns
+        -------
+        gravity_field : gravityfield_like
+            sum of all constituent evaluated at the epoch
+        """
+        return np.sum([c.evaluate_at(epoch) for c in self.constituents])
 
 
 class TimeSeries:
@@ -524,6 +555,22 @@ class TimeSeries:
 
         return self.__data[idx - 1] * (1 - weight) + self.__data[idx] * weight
 
+    def evaluate_at(self, epoch):
+        """
+        Evaluate the time series at a specific epoch. This is a wrapper for interpolate_to.
+
+        Parameters
+        ----------
+        epoch : datetime.datetime
+            epoch to be interpolated to
+
+        Returns
+        -------
+        interp: gravity field type
+            interpolated value
+        """
+        return self.interpolate_to(epoch)
+
     def to_array(self):
         """
         Returns the time series as array.
@@ -574,7 +621,18 @@ class TimeSeries:
 
 
 class Trend:
+    """
+    Linear gravity field trend.
 
+    Parameters
+    ----------
+    gravity_field : gravityfield_like
+        trend coefficients as gravity field
+    reference_epoch : dt.datetime
+        reference epoch of the trend coefficients
+    time_scale : float
+        time unit of the trend coefficients in days (365.25 corresponds to potential/year, 1.0 corresponds to potential/day and so on)
+    """
     def __init__(self, gravity_field, reference_epoch, time_scale=365.25):
 
         self.__data = gravity_field.copy()
@@ -582,30 +640,96 @@ class Trend:
         self.__time_scale = time_scale
 
     def evaluate_at(self, epoch):
+        """
+        Evaluate the trend at a specific epoch.
 
-        dt = (epoch - self.__reference_epoch).total_seconds()/(86400*self.__time_scale)
+        .. math:: V(t) = V \cdot (t - t_0)
 
-        return self.__data*dt
+        Parameters
+        ----------
+        epoch : dt.datetime
+            epoch where the trend is evaluated
+
+        Returns
+        -------
+        gravity_field : gravityfield_like
+            trend evaluated at epoch t
+        """
+        dt = (epoch - self.__reference_epoch).total_seconds() / (86400 * self.__time_scale)
+
+        return self.__data * dt
 
 
 class Oscillation:
+    """
+    Sinosoidal oscilattion of gravity field values.
 
-    def __init__(self, gravity_field_cosine, gravity_field_sine, period, reference_epoch, time_scale=365.25):
+    Parameters
+    ----------
+    gravity_field_cosine : gravityfield_like
+        cosine coefficients as gravity field
+    gravity_field_sine : gravityfield_like
+        sine coefficients as gravity field
+    period : float
+        oscillation period in days
+    reference_epoch : dt.datetime
+        reference epoch of the trend coefficients
+    """
+    def __init__(self, gravity_field_cosine, gravity_field_sine, period, reference_epoch):
 
         self.__data_cosine = gravity_field_cosine.copy()
         self.__data_sine = gravity_field_sine.copy()
         self.__reference_epoch = reference_epoch
         self.__period = period
-        self.__time_scale = time_scale
 
     def evaluate_at(self, epoch):
+        """
+        Evaluate the oscillation at a specific epoch.
 
-        dt = (epoch - self.__reference_epoch).total_seconds()/(86400*self.__time_scale) *self.__period
+        .. math:: V(t) = V_c \cdot \cos 2\pi \frac{(t - t_0)}{T} + V_s \sin 2\pi \frac{(t - t_0)}{T}
 
-        return self.__data_cosine*np.cos(2*np.pi*dt) + self.__data_sine*np.sin(2*np.pi*dt)
+        Parameters
+        ----------
+        epoch : dt.datetime
+            epoch where the trend is evaluated
+
+        Returns
+        -------
+        gravity_field : gravityfield_like
+            oscillation evaluated at epoch t
+        """
+        dt = (epoch - self.__reference_epoch).total_seconds() / (86400 * self.__period)
+
+        return self.__data_cosine * np.cos(2 * np.pi *dt) + self.__data_sine * np.sin(2 * np.pi * dt)
 
 
+def gridded_rms(temporal_gravityfield, epochs, kernel='ewh', base_grid=grates.grid.GeographicGrid()):
+    """
+    Propagate a time variable gravity field to space domain an compute the RMS over all epochs.
 
+    Parameters
+    ----------
+    temporal_gravityfield : time variable gravity field
+        the time variable gravity field to be evaluated
+    epoch : list of dt.datetime
+        epochs at which the gravity field is evaluated
+    kernel : str
+        kernel of the grid values (default: equivalent water height)
+    base_grid : grates.grid.Grid
+        grid to which the gravity field is propagated
 
+    Returns
+    -------
+    rms_grid : grates.grid.Grid
+        gridded RMS values
+    """
+    rms_values = np.zeros(base_grid.point_count)
 
+    for t in epochs:
+        gf = temporal_gravityfield.evaluate_at(t)
+        rms_values += gf.to_grid(base_grid, kernel=kernel).values**2
 
+    rms_grid = base_grid.copy()
+    rms_grid.values = np.sqrt(rms_values / len(epochs))
+
+    return rms_grid
