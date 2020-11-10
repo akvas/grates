@@ -524,6 +524,22 @@ class TimeSeries:
 
         return self.__data[idx - 1] * (1 - weight) + self.__data[idx] * weight
 
+    def evaluate_at(self, epoch):
+        """
+        Evaluate the time series at a specific epoch. This is a wrapper for interpolate_to.
+
+        Parameters
+        ----------
+        epoch : datetime.datetime
+            epoch to be interpolated to
+
+        Returns
+        -------
+        interp: gravity field type
+            interpolated value
+        """
+        return self.interpolate_to(epoch)
+
     def to_array(self):
         """
         Returns the time series as array.
