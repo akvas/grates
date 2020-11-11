@@ -247,6 +247,42 @@ class Grid(metaclass=abc.ABCMeta):
 
         return point_index
 
+    @abc.abstractmethod
+    def synthesis_matrix(self, min_degree, max_degree, kernel, GM, R):
+        pass
+
+    @abc.abstractmethod
+    def analysis_matrix(self, min_degree, max_degree, kernel, GM, R):
+        pass
+
+    def window_matrix(self, min_degree, max_degree, kernel='potential', GM=3.9860044150e+14, R=6.3781363000e+06):
+        """
+        Create a window matrix for spherical harmonic coefficients. The grid values are interpreted as a window function and
+        should be in the range [0, 1].
+
+        Parameters
+        ----------
+        min_degree : int
+            minimum spherical harmonic degree
+        max_degree : int
+            maximum spherical harmonic degree
+        kernel : str
+            name of the kernel which represents the output functional
+        GM : float
+            geocentric gravitational constant
+        R : float
+            reference radius
+
+        Returns
+        -------
+        W : ndarray(n, n)
+            matrix that windows n spherical harmonic coefficients in degreewise order
+        """
+        A = self.analysis_matrix(min_degree, max_degree, kernel, GM, R)
+        A *= self.values
+
+        return A @ self.synthesis_matrix(min_degree, max_degree, kernel, GM, R)
+
 
 class RegularGrid(Grid):
     """
