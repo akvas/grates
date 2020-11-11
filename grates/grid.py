@@ -436,15 +436,15 @@ class RegularGrid(Grid):
 
         column_index = np.logical_and(orders == 0, is_cosine)
         Ak = A[:, column_index]
-        A[:, column_index] = np.linalg.solve((Ak * self.__areas[:, np.newaxis]).T @ Ak, (Ak * self.__areas[:, np.newaxis]).T).T
+        A[:, column_index] = np.linalg.solve((Ak * self.area[:, np.newaxis]).T @ Ak, (Ak * self.area[:, np.newaxis]).T).T
         for m in range(1, max_degree + 1):
             column_index = np.logical_and(orders == m, is_cosine)
             Ak = A[:, column_index]
-            A[:, column_index] = np.linalg.solve((Ak * self.__areas[:, np.newaxis]).T @ Ak, (Ak * self.__areas[:, np.newaxis]).T).T
+            A[:, column_index] = np.linalg.solve((Ak * self.area[:, np.newaxis]).T @ Ak, (Ak * self.area[:, np.newaxis]).T).T
 
             column_index = np.logical_and(orders == m, ~is_cosine)
             Ak = A[:, column_index]
-            A[:, column_index] = np.linalg.solve((Ak * self.__areas[:, np.newaxis]).T @ Ak, (Ak * self.__areas[:, np.newaxis]).T).T
+            A[:, column_index] = np.linalg.solve((Ak * self.area[:, np.newaxis]).T @ Ak, (Ak * self.area[:, np.newaxis]).T).T
 
         return A.T
 
