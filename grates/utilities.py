@@ -9,9 +9,11 @@ import numpy as np
 import abc
 import grates.time
 import pkg_resources
+import typing
+import datetime as dt
 
 
-def legendre_functions(nmax, colat):
+def legendre_functions(nmax: int, colat):
     """
     Associated fully normalized Legendre functions (1st kind).
 
@@ -37,20 +39,16 @@ def legendre_functions(nmax, colat):
     function_array[:, 1, 1] = np.sqrt(3) * np.sin(theta)
 
     for n in range(2, nmax + 1):
-        function_array[:, n, n] = np.sqrt((2.0 * n + 1.0) / (2.0 * n)) * np.sin(theta) * \
-                                  function_array[:, n - 1, n - 1]
+        function_array[:, n, n] = np.sqrt((2.0 * n + 1.0) / (2.0 * n)) * np.sin(theta) * function_array[:, n - 1, n - 1]
 
     index = np.arange(nmax + 1)
-    function_array[:, index[2:], index[1:-1]] = np.sqrt(2 * index[2:] + 1) * np.cos(theta[:, np.newaxis]) * \
-                                                function_array[:, index[1:-1], index[1:-1]]
+    function_array[:, index[2:], index[1:-1]] = np.sqrt(2 * index[2:] + 1) * np.cos(theta[:, np.newaxis]) * function_array[:, index[1:-1], index[1:-1]]
 
     for row in range(2, nmax + 1):
         n = index[row:]
         m = index[0:-row]
-        function_array[:, n, m] = np.sqrt((2.0 * n - 1.0) / (n - m) * (2.0 * n + 1.0) / (n + m)) * \
-                                  np.cos(theta[:, np.newaxis]) * function_array[:, n - 1, m] - \
-                                  np.sqrt((2.0 * n + 1.0) / (2.0 * n - 3.0) * (n - m - 1.0) / (n - m) *
-                                          (n + m - 1.0) / (n + m)) * function_array[:, n - 2, m]
+        function_array[:, n, m] = np.sqrt((2.0 * n - 1.0) / (n - m) * (2.0 * n + 1.0) / (n + m)) * np.cos(theta[:, np.newaxis]) * function_array[:, n - 1, m] - \
+            np.sqrt((2.0 * n + 1.0) / (2.0 * n - 3.0) * (n - m - 1.0) / (n - m) * (n + m - 1.0) / (n + m)) * function_array[:, n - 2, m]
 
     for m in range(1, nmax + 1):
         function_array[:, m - 1, m:] = function_array[:, m:, m]
@@ -58,7 +56,7 @@ def legendre_functions(nmax, colat):
     return function_array
 
 
-def legendre_polynomials(nmax, colat):
+def legendre_polynomials(nmax: int, colat):
     """
     Fully normalized Legendre polynomials.
 
@@ -83,10 +81,8 @@ def legendre_polynomials(nmax, colat):
     polynomial_array[:, 1] = np.sqrt(3) * t
 
     for n in range(2, nmax + 1):
-        polynomial_array[:, n] = np.sqrt((2.0 * n - 1.0) * (2.0 * n + 1.0)) / n * \
-                                 t * polynomial_array[:, n - 1] - \
-                                 np.sqrt((2.0 * n + 1.0) / (2.0 * n - 3.0)) * (n - 1.0) / n * \
-                                 polynomial_array[:, n - 2]
+        polynomial_array[:, n] = np.sqrt((2.0 * n - 1.0) * (2.0 * n + 1.0)) / n * t * polynomial_array[:, n - 1] - \
+            np.sqrt((2.0 * n + 1.0) / (2.0 * n - 3.0)) * (n - 1.0) / n * polynomial_array[:, n - 2]
 
     return polynomial_array
 
@@ -105,7 +101,7 @@ def legendre_summation(coefficients, colat):
     Returns
     -------
     sum : array_like
-        evaluated linear combination (same shape as colat
+        evaluated linear combination (same shape as colat)
 
      References
     ----------
@@ -129,7 +125,7 @@ def legendre_summation(coefficients, colat):
     return coefficients[0] + np.sqrt(3) * t * b1 - 0.5 * np.sqrt(5) * b2
 
 
-def trigonometric_functions(nmax, lon):
+def trigonometric_functions(nmax: int, lon):
     """
     Convenience function to compute the trigonometric functions (cosine, sine) for the use
     in spherical harmonics.
@@ -158,7 +154,7 @@ def trigonometric_functions(nmax, lon):
     return cs_array
 
 
-def spherical_harmonics(nmax, colat, lon):
+def spherical_harmonics(nmax: int, colat, lon):
     """
     Fully normalized spherical harmonics.
 
@@ -188,7 +184,7 @@ def spherical_harmonics(nmax, colat, lon):
     return sh_array
 
 
-def ravel_coefficients(array, min_degree=0, max_degree=None):
+def ravel_coefficients(array, min_degree: int = 0, max_degree: int = None):
     """
     Ravel a 2d or 3d array representing degree/order.
 
@@ -241,7 +237,7 @@ def ravel_coefficients(array, min_degree=0, max_degree=None):
     return x
 
 
-def unravel_coefficients(vector, min_degree=0, max_degree=None):
+def unravel_coefficients(vector, min_degree: int = 0, max_degree: int = None):
     """
     Unravel a 1d spherical harmonic coefficient vector into a 2d array
 
@@ -277,7 +273,7 @@ def unravel_coefficients(vector, min_degree=0, max_degree=None):
     return array
 
 
-def normal_gravity(r, colat, a=6378137.0, f=298.2572221010 ** -1, convergence_threshold=1e-9):
+def normal_gravity(r, colat, a: float = 6378137.0, f: float = 298.2572221010**-1, convergence_threshold: float = 1e-9):
     """
     Normal gravity on the ellipsoid (GRS80).
 
@@ -331,7 +327,7 @@ def normal_gravity(r, colat, a=6378137.0, f=298.2572221010 ** -1, convergence_th
     return gamma0 - 2 * ga / a * (1 + f + m + (-3 * f + 5 * m / 2) * sin2) * h + 3 * ga / a ** 2 * h ** 2
 
 
-def geocentric_radius(latitude, a=6378137.0, f=298.2572221010 ** -1):
+def geocentric_radius(latitude, a: float = 6378137.0, f: float = 298.2572221010**-1):
     """
     Geocentric radius of a point on the ellipsoid.
 
@@ -355,7 +351,7 @@ def geocentric_radius(latitude, a=6378137.0, f=298.2572221010 ** -1):
     return nu * np.sqrt(np.cos(latitude) ** 2 + (1 - e2) ** 2 * np.sin(latitude) ** 2)
 
 
-def colatitude(latitude, a=6378137.0, f=298.2572221010 ** -1):
+def colatitude(latitude, a: float = 6378137.0, f: float = 298.2572221010**-1):
     """
     Co-latitude of a point on the ellipsoid.
 
@@ -403,7 +399,7 @@ class Oscillation(TemporalBasisFunction):
     reference_epoch : datetime object
         reference epoch of the oscillation
     """
-    def __init__(self, period, reference_epoch=None):
+    def __init__(self, period: float, reference_epoch: typing.Optional[dt.datetime] = None):
 
         self.__period = period
         self.__reference_epoch = reference_epoch
@@ -427,7 +423,7 @@ class Oscillation(TemporalBasisFunction):
             t -= grates.time.mjd(self.__reference_epoch)
 
         dmatrix = np.empty((t.size, 2))
-        dmatrix[:, 0] = np.cos(2*np.pi/self.__period * t)
+        dmatrix[:, 0] = np.cos(2 * np.pi / self.__period * t)
         dmatrix[:, 1] = np.sin(2 * np.pi / self.__period * t)
 
         return dmatrix
@@ -446,7 +442,7 @@ class Polynomial(TemporalBasisFunction):
     reference_epoch : datetime object
         reference epoch of the oscillation
     """
-    def __init__(self, degree, reference_epoch=None):
+    def __init__(self, degree: int, reference_epoch: typing.Optional[dt.datetime] = None):
 
         self.__degree = degree
         self.__reference_epoch = reference_epoch
@@ -477,7 +473,7 @@ class Polynomial(TemporalBasisFunction):
         return dmatrix
 
 
-def load_love_numbers(max_degree=None, frame='CE'):
+def load_love_numbers(max_degree: typing.Optional[int] = None, frame: str = 'CE'):
     """
     Load Love numbers computed by Wang et al. (2012) [1]_ for the elastic Earth model ak135 [2]_.
     from degree 0 to 46340.
