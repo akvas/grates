@@ -6,7 +6,6 @@ Isotropic harmonic integral kernels.
 """
 
 import numpy as np
-import pkg_resources
 import abc
 import grates.utilities
 import grates.gravityfield
@@ -210,8 +209,7 @@ class WaterHeight(Kernel):
     def __init__(self, rho=1025):
 
         self.__rho = rho
-        self.__love_numbers = np.loadtxt(pkg_resources.resource_filename('grates',
-                                                                         'data/loadLoveNumbers_Gegout97.txt'))
+        self.__love_numbers, _, _ = grates.utilities.load_love_numbers()
 
     def coefficient(self, n, r=6378136.6, colat=0):
         """
@@ -244,8 +242,7 @@ class OceanBottomPressure(Kernel):
     """
     def __init__(self):
 
-        self.__love_numbers = np.loadtxt(pkg_resources.resource_filename('grates',
-                                                                         'data/loadLoveNumbers_Gegout97.txt'))
+        self.__love_numbers, _, _ = grates.utilities.load_love_numbers()
 
     def coefficient(self, n, r=6378136.6, colat=0):
         """
@@ -277,8 +274,7 @@ class SurfaceDensity(Kernel):
     """
     def __init__(self):
 
-        self.__love_numbers = np.loadtxt(pkg_resources.resource_filename('grates',
-                                                                         'data/loadLoveNumbers_Gegout97.txt'))
+        self.__love_numbers, _, _ = grates.utilities.load_love_numbers()
 
     def coefficient(self, n, r=6378136.6, colat=0):
         """
