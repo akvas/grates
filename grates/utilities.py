@@ -530,3 +530,32 @@ def load_love_numbers(max_degree=None, frame='CE'):
         raise ValueError('frame of load love numbers must be one of CM, CE, or CF (got <' + frame + '>)')
 
     return hlk[:, 2], hlk[:, 0], hlk[:, 1]
+
+
+def kaula_curve(min_degree, max_degree, kaula_factor=1e-10, kaula_power=4.0):
+    """
+    Return a Kaula-type curve of the form :math:`\sigma_n^2 = f \cdot \frac{1}{n^p}` as a coefficient array.
+
+    Parameters
+    ----------
+    min_degree : int
+        minimum degree of the curve (degrees below min_degree are filled with zeros)
+    max_degree : int
+        maximum degree of the curve
+    kaula_factor : float
+        scale factor of Kaula curve
+    kaula_power : float
+        power of Kaula curve
+
+    Returns
+    -------
+    anm : ndarray(max_degree + 1, max_degree + 1)
+        Kaula curve as coefficient array
+    """
+    anm = np.zeros((max_degree + 1, max_degree + 1))
+    for n in range(min_degree, max_degree + 1):
+        row_index, col_index = grates.gravityfield.degree_indices(n)
+
+        anm[row_index, col_index] = kaula_factor * np.power(n, -kaula_factor)
+
+    return anm
