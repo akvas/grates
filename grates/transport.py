@@ -11,6 +11,7 @@ import scipy.integrate
 import grates.kernel
 import grates.utilities
 import grates.grid
+import typing
 
 
 class Bathymetry(metaclass=abc.ABCMeta):
@@ -42,7 +43,7 @@ class BathymetryGridded(Bathymetry):
     f : float
         flattening of ellipsoid
     """
-    def __init__(self, longitude, latitude, elevation, basin=None, a=6378137.0, f=298.2572221010**-1):
+    def __init__(self, longitude, latitude, elevation, basin: typing.Optional[typing.Type[grates.grid.Basin]] = None, a: float = 6378137.0, f: float = 298.2572221010**-1):
 
         self.__longitude = np.asarray(longitude)
         self.__latitude = np.asarray(latitude)
@@ -51,12 +52,19 @@ class BathymetryGridded(Bathymetry):
         self.__f = f
         self.__basin = basin
 
-    def cross_section(self, latitude):
+    def cross_section(self, latitude: float):
+        """
+        Return a cross section for a specific latitude.
 
+        Parameters
+        ----------
+        latitude : float
+            latitude of the cross section in radians (must be present in the bathymetry coordinates)
+        """
         latitude_index = np.searchsorted(self.__latitude, latitude)
 
         if self.__basin is not None:
-            mask = self.__basin.contains_points(self.__longitude, latitude)
+            mask = self.__basin.contains_points(self.__longitude, latitude, None)
         else:
             mask = np.ones(self.__longitude.size, dtype=bool)
 
@@ -72,7 +80,7 @@ class Transport(metaclass=abc.ABCMeta):
     a 1d latitude array, a 1d depth_bounds array, and gravity field time series.
     """
     @abc.abstractmethod
-    def compute(self, latitude, depth_bounds, data):
+    def compute(self, latitude, depth_bounds, data: typing.Type[grates.gravityfield.TimeSeries]):
         pass
 
 
@@ -81,24 +89,44 @@ class Spectral(Transport):
     Compute meridional transport from gravity fields given in spectral domain (potential coefficients).
 
     """
-    def __init__(self, topography, seawater_density=1025, earthrotation=7.29211585531e-5):
+    def __init__(self, topography, seawater_density: float = 1025, earthrotation: float = 7.29211585531e-5):
 
         self.__topography = topography
         self.__density = seawater_density
         self.__earthrotation = earthrotation
 
-    def coefficient_factors(self, latitudes, depth_bounds, nmax, GM=3.9860044150e+14, R=6.3781363000e+06):
+    def coefficient_factors(self, latitudes, depth_bounds, max_degree: int, GM=3.9860044150e+14, R=6.3781363000e+06):
+        """
+        Pre-compute the coefficient-wise factor for deriving meridional transport from potential coefficients.
 
+        Parameters
+        ----------
+        latitudes : array_like(m,)
+            latitudes in radians for which the transport should be computed
+        depth_bounds : tuple
+            two-element tuple which contains the lower and upper boundary of the depth layer in meters
+        max_degree : int
+            maximum spherical harmonic degree
+        GM : float
+            geocentric gravitational constant
+        R : float
+            reference radius
+
+        Returns
+        -------
+        coefficient_factor : array_like(m, max_degree + 1, max_degree + 1)
+            3d ndarray containing the factors for each spherical harmonic coefficient and each latitude
+        """
         latitudes = np.atleast_1d(latitudes)
-        orders = np.arange(nmax + 1, dtype=float)[:, np.newaxis]
+        orders = np.arange(max_degree + 1, dtype=float)[:, np.newaxis]
         obp_kernel = grates.kernel.OceanBottomPressure()
 
         colatitude = grates.utilities.colatitude(latitudes)
         radius = grates.utilities.geocentric_radius(latitudes)
 
-        legendre_array = grates.utilities.legendre_functions(nmax, colatitude)
+        legendre_array = grates.utilities.legendre_functions(max_degree, colatitude)
 
-        coefficient_factor = np.empty((latitudes.size, nmax + 1, nmax + 1))
+        coefficient_factor = np.empty((latitudes.size, max_degree + 1, max_degree + 1))
         for k, latitude in enumerate(latitudes):
             lon, z, dz = self.__topography.cross_section(latitude)
             depth_mask = np.logical_or(z < depth_bounds[0], z > depth_bounds[1])
@@ -107,15 +135,14 @@ class Spectral(Transport):
             factors_cosine = scipy.integrate.trapz(np.cos(orders * lon) * dz, lon)
             factors_sine = scipy.integrate.trapz(np.sin(orders * lon) * dz, lon)
 
-            coefficient_factor[k, :, :] = legendre_array[k, :, :] * GM / R / (
-                    2 * self.__density * self.__earthrotation * np.sin(latitude))
+            coefficient_factor[k, :, :] = legendre_array[k, :, :] * GM / R / (2 * self.__density * self.__earthrotation * np.sin(latitude))
 
-            continuation = np.power(R / radius[k], range(nmax + 1))
-            for n in range(1, nmax + 1):
+            continuation = np.power(R / radius[k], range(max_degree + 1))
+            for n in range(1, max_degree + 1):
                 row_idx, col_idx = grates.gravityfield.degree_indices(n)
 
                 coefficient_factor[k, row_idx, col_idx] *= obp_kernel.inverse_coefficient(n) * continuation[n] * \
-                                                           np.concatenate((factors_cosine[0:n + 1], factors_sine[1:n + 1]))
+                    np.concatenate((factors_cosine[0:n + 1], factors_sine[1:n + 1]))
 
             coefficient_factor[k, :, 0] = 0
 
@@ -132,7 +159,7 @@ class Spectral(Transport):
         for k, coeffs in enumerate(data):
             epochs.append(coeffs.epoch)
 
-            transport_series[k, :] = np.sum(factors*coeffs.anm, axis=(1, 2))
+            transport_series[k, :] = np.sum(factors * coeffs.anm, axis=(1, 2))
 
         return epochs, transport_series
 
