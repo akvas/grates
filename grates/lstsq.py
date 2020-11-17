@@ -30,6 +30,7 @@ class AutoregressiveModel:
         self.__covariance_matrix = covariance_matrix
         self.__normal_equation = None
 
+    @property
     def dimension(self):
         """
         Dimension of the VAR model.
@@ -41,6 +42,7 @@ class AutoregressiveModel:
         """
         return self.__covariance_matrix.shape[0]
 
+    @property
     def order(self):
         """
         Order of the VAR model.
@@ -52,6 +54,7 @@ class AutoregressiveModel:
         """
         return len(self.__coefficients)
 
+    @property
     def white_noise_covariance(self):
         """
         Return a view of the white noise covariance matrix.
@@ -63,6 +66,7 @@ class AutoregressiveModel:
         """
         return self.__covariance_matrix
 
+    @property
     def coefficients(self):
         """
         Return the coefficients of the VAR model as a list of ndarrays.
@@ -83,14 +87,14 @@ class AutoregressiveModel:
         armodel : AutoregressiveModel
             autoregressive model of order one
         """
-        if self.order() == 1:
+        if self.order == 1:
             return self
         else:
-            B = np.eye(self.dimension()*self.order())
-            for k in range(self.order()):
-                B[0:self.dimension(), k*self.dimension():(k+1)*self.dimension()] = self.__coefficients[k].copy()
+            B = np.eye(self.dimension * self.order)
+            for k in range(self.order):
+                B[0:self.dimension, k * self.dimension:(k + 1) * self.dimension] = self.__coefficients[k].copy()
             Q = np.zeros(B.shape)
-            Q[0:self.dimension(), 0:self.dimension()] = self.__covariance_matrix.copy()
+            Q[0:self.dimension, 0:self.dimension] = self.__covariance_matrix.copy()
 
             return AutoregressiveModel(B, Q)
 
@@ -196,13 +200,13 @@ class AutoregressiveModel:
         observation_equations.append(-np.linalg.inv(W.T))
 
         block_index = [0]
-        while block_index[-1] < (self.order() + 1)*self.dimension():
-            block_index.append(block_index[-1] + self.dimension())
+        while block_index[-1] < (self.order + 1) * self.dimension:
+            block_index.append(block_index[-1] + self.dimension)
 
         self.__normal_equation = BlockMatrix(block_index, block_index)
         for row in range(self.__normal_equation.shape[0]):
             for column in range(row, self.__normal_equation.shape[1]):
-                self.__normal_equation[row, column] = observation_equations[row].T@observation_equations[column]
+                self.__normal_equation[row, column] = observation_equations[row].T @ observation_equations[column]
 
     def normal_equation_block(self, row, column):
         """
@@ -237,7 +241,7 @@ class AutoregressiveModel:
 
         transformed_coefficients = []
         for B in self.__coefficients[::-1]:
-            transformed_coefficients.append(-W_inv@B)
+            transformed_coefficients.append(-W_inv @ B)
         transformed_coefficients.append(W_inv)
 
         return np.hstack(transformed_coefficients)
@@ -302,6 +306,7 @@ class AutoregressiveModelSequence:
 
         return AutoregressiveModelSequence(armodels)
 
+    @property
     def maximum_order(self):
         """
         Return the maximum order of the VAR model sequence.
@@ -311,8 +316,9 @@ class AutoregressiveModelSequence:
         max_order : int
             maximum order of the VAR model sequence
         """
-        return self.__armodels[-1].order()
+        return self.__armodels[-1].order
 
+    @property
     def dimension(self):
         """
         Dimension of the VAR model sequence.
@@ -322,7 +328,7 @@ class AutoregressiveModelSequence:
         dim : int
             dimension of the VAR model sequence
         """
-        return self.__armodels[-1].dimension()
+        return self.__armodels[-1].dimension
 
     def __normals_block(self, epoch_count, row, column):
         """
@@ -343,13 +349,13 @@ class AutoregressiveModelSequence:
         normals_block : ndarray(dim, dim)
             normal equation coefficients matrix block (row, column)
         """
-        N = np.zeros((self.dimension(), self.dimension()))
+        N = np.zeros((self.dimension, self.dimension))
 
-        for l in range(epoch_count - self.maximum_order()):
-            if row >= l and column <= (self.maximum_order() + l):
+        for l in range(epoch_count - self.maximum_order):
+            if row >= l and column <= (self.maximum_order + l):
                 N += self.__armodels[-1].normal_equation_block(row - l, column - l)
 
-        for order in range(self.maximum_order()):
+        for order in range(self.maximum_order):
             if row <= order and column <= order:
                 N += self.__armodels[order].normal_equation_block(row, column)
 
@@ -371,8 +377,8 @@ class AutoregressiveModelSequence:
         normals : NormalEquations
             blocked normal equation with zero right hand side
         """
-        parameter_count = epoch_count * self.dimension()
-        block_index = np.arange(0, parameter_count + self.dimension(), self.dimension(), dtype=int)
+        parameter_count = epoch_count * self.dimension
+        block_index = np.arange(0, parameter_count + self.dimension, self.dimension, dtype=int)
 
         normals_matrix = BlockMatrix(block_index, block_index)
         right_hand_side = np.zeros((parameter_count, 1))
@@ -380,7 +386,7 @@ class AutoregressiveModelSequence:
         observation_square_sum = 0.0
 
         for row in range(epoch_count):
-            for column in range(row, min(epoch_count, row + self.dimension() + 1)):
+            for column in range(row, min(epoch_count, row + self.maximum_order + 1)):
                 normals_matrix[row, column] = self.__normals_block(epoch_count, row, column)
 
         return NormalEquations(normals_matrix, right_hand_side, observation_square_sum, observation_count)
@@ -392,7 +398,7 @@ class BlockMatrix:
     """
     def __init__(self, row_index, column_index):
 
-        self.shape = (len(row_index)-1, len(column_index)-1)
+        self.shape = (len(row_index) - 1, len(column_index) - 1)
         self.__row_index = row_index
         self.__column_index = column_index
         self.__data = np.empty(self.shape, dtype=np.ndarray)
@@ -426,10 +432,8 @@ class BlockMatrix:
         block_matrix = BlockMatrix(row_index, column_index)
         for row in range(len(row_index) - 1):
             for column in range(len(column_index) - 1):
-                if np.count_nonzero(array_copy[row_index[row]:row_index[row + 1],
-                                    column_index[column]:column_index[column + 1]]):
-                    block_matrix[row, column] = array_copy[row_index[row]:row_index[row + 1],
-                                                column_index[column]:column_index[column + 1]]
+                if np.count_nonzero(array_copy[row_index[row]:row_index[row + 1], column_index[column]:column_index[column + 1]]):
+                    block_matrix[row, column] = array_copy[row_index[row]:row_index[row + 1], column_index[column]:column_index[column + 1]]
                     block_matrix.__is_nonzero[row, column] = True
 
         return block_matrix
@@ -448,7 +452,7 @@ class BlockMatrix:
             for column in range(self.shape[1]):
                 array[self.__row_slice(row), self.__column_slice(column)] = \
                     self.__data[row, column] if self.__is_nonzero[row, column] else \
-                        np.zeros(self.__block_shape(row, column))
+                    np.zeros(self.__block_shape(row, column))
 
         return array
 
