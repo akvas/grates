@@ -546,7 +546,7 @@ class BlockMatrix:
         if item.ndim != 2:
             raise ValueError('Block matrix item must be a two-dimensional ' + str(np.ndarray))
         if item.shape != self.__block_shape(i, j):
-            raise ValueError('Block matrix item at position ({0:d}, {1:d]) must be of size ({2:d}, {3:d}). '
+            raise ValueError('Block matrix item at position ({0:d}, {1:d}) must be of size ({2:d}, {3:d}). '
                              'Got ({4:d}, {5:d}).'.format(i, j, self.__row_index[i], self.__row_index[j],
                                                           item.shape[0], item.shape[1]))
 
