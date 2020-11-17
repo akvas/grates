@@ -154,7 +154,7 @@ class AutoregressiveModel:
         coefficient_matrix = BlockMatrix(block_index, block_index)
         right_hand_side = np.empty((dimension * model_order, dimension))
         for row in range(coefficient_matrix.shape[0]):
-            right_hand_side[row*dimension:(row+1)*dimension, :] = covariance_function[row + 1]
+            right_hand_side[row * dimension:(row + 1) * dimension, :] = covariance_function[row + 1]
             for column in range(row, coefficient_matrix.shape[1]):
                 coefficient_matrix[row, column] = covariance_function[column - row].T
 
@@ -162,7 +162,7 @@ class AutoregressiveModel:
         x1 = coefficient_matrix.solve_triangular(right_hand_side, transpose=True)
         x2 = coefficient_matrix.solve_triangular(x1)
 
-        Q = covariance_function[0] - x2.T@right_hand_side
+        Q = covariance_function[0] - x2.T @ right_hand_side
 
         return AutoregressiveModel(np.split(x2.T, model_order, axis=1), Q)
 
@@ -185,7 +185,7 @@ class AutoregressiveModel:
         """
         covariance_function = []
         for k in range(order + 1):
-            covariance_function.append((sample.T@sample)/(sample.shape[0] - k))
+            covariance_function.append((sample.T @ sample) / (sample.shape[0] - k))
 
         return AutoregressiveModel.from_covariance_function(covariance_function)
 
@@ -278,7 +278,7 @@ class AutoregressiveModelSequence:
         """
         armodels = []
         for k in range(len(covariance_function)):
-            armodels.append(AutoregressiveModel.from_covariance_function(covariance_function[0:k+1]))
+            armodels.append(AutoregressiveModel.from_covariance_function(covariance_function[0:k + 1]))
 
         return AutoregressiveModelSequence(armodels)
 
@@ -351,9 +351,9 @@ class AutoregressiveModelSequence:
         """
         N = np.zeros((self.dimension, self.dimension))
 
-        for l in range(epoch_count - self.maximum_order):
-            if row >= l and column <= (self.maximum_order + l):
-                N += self.__armodels[-1].normal_equation_block(row - l, column - l)
+        for index in range(epoch_count - self.maximum_order):
+            if row >= index and column <= (self.maximum_order + index):
+                N += self.__armodels[-1].normal_equation_block(row - index, column - index)
 
         for order in range(self.maximum_order):
             if row <= order and column <= order:
@@ -489,7 +489,7 @@ class BlockMatrix:
         shape : tuple
             2-element tuple with row and column count
         """
-        return self.__row_index[i + 1]-self.__row_index[i], self.__column_index[j + 1]-self.__column_index[j]
+        return self.__row_index[i + 1] - self.__row_index[i], self.__column_index[j + 1] - self.__column_index[j]
 
     def __row_slice(self, i):
         """
@@ -619,7 +619,7 @@ class BlockMatrix:
                     result.__set_block(i, j)
                     for k in range(self.shape[1]):
                         if self.__is_nonzero[i, k] and other.__is_nonzero[k, j]:
-                            result[i, j] += self.__data[i, k]@other.__data[k, j]
+                            result[i, j] += self.__data[i, k] @ other.__data[k, j]
 
         return result
 
@@ -651,7 +651,7 @@ class BlockMatrix:
                 for c in range(row, self.shape[1]):
                     if self.__is_nonzero[r, row] and self.__is_nonzero[r, c]:
                         self.__set_block(row, c)
-                        self.__data[row, c] -= self.__data[r, row].T@self.__data[r, c]
+                        self.__data[row, c] -= self.__data[r, row].T @ self.__data[r, c]
 
             self.__data[row, row] = la.cholesky(self.__data[row, row], overwrite_a=True, lower=False)
             for column in range(row + 1, self.shape[1]):
@@ -683,12 +683,12 @@ class BlockMatrix:
             for i in range(self.shape[0]):
                 for j in range(i + 1):
                     if self.__is_nonzero[j, i]:
-                        v[self.__row_slice(i), :] = self.__data[j, i].T@b[self.__row_slice(j), :]
+                        v[self.__row_slice(i), :] = self.__data[j, i].T @ b[self.__row_slice(j), :]
         else:
             for i in range(self.shape[0]):
                 for j in range(i, self.shape[1]):
                     if self.__is_nonzero[i, j]:
-                        v[self.__row_slice(i), :] += self.__data[i, j]@b[self.__row_slice(j), :]
+                        v[self.__row_slice(i), :] += self.__data[i, j] @ b[self.__row_slice(j), :]
 
         return v
 
@@ -719,7 +719,7 @@ class BlockMatrix:
 
                 for column in range(row):
                     if self.__is_nonzero[column, row]:
-                        b_copy[self.__row_slice(row), :] -= self.__data[column, row].T@x[self.__row_slice(column), :]
+                        b_copy[self.__row_slice(row), :] -= self.__data[column, row].T @ x[self.__row_slice(column), :]
 
                 x[self.__row_slice(row), :] = la.solve_triangular(self.__data[row, row],
                                                                   b_copy[self.__row_slice(row), :],
@@ -729,7 +729,7 @@ class BlockMatrix:
 
                 for column in range(self.shape[0] - 1, row, -1):
                     if self.__is_nonzero[row, column]:
-                        b_copy[self.__row_slice(row), :] -= self.__data[row, column]@x[self.__row_slice(column), :]
+                        b_copy[self.__row_slice(row), :] -= self.__data[row, column] @ x[self.__row_slice(column), :]
 
                 x[self.__row_slice(row), :] = la.solve_triangular(self.__data[row, row],
                                                                   b_copy[self.__row_slice(row), :],
@@ -753,14 +753,14 @@ class BlockMatrix:
                                                                    trans='N', overwrite_b=True, lower=False)
                     self.__data[i, k] = np.zeros(self.__data[i, k].shape)
 
-            self.__data[i, i] = la.inv(self.__data[i, i].T@self.__data[i, i])
+            self.__data[i, i] = la.inv(self.__data[i, i].T @ self.__data[i, i])
 
             for j in range(self.shape[0] - 1, i - 1, -1):
                 if self.__is_nonzero[i, j]:
                     for k in range(i + 1, self.shape[0]):
                         if self.__is_nonzero[min(k, j), max(k, j)] and temporary_row[k - i - 1] is not None:
                             matrix_block = self.__data[k, j] if k < j else self.__data[j, k].T
-                            self.__data[i, j] -= temporary_row[k - i - 1]@matrix_block
+                            self.__data[i, j] -= temporary_row[k - i - 1] @ matrix_block
 
     def inverse(self):
         """
@@ -779,7 +779,7 @@ class BlockMatrix:
                 for k in range(i + 1, j):
                     if self.__is_nonzero[i, k] and self.__is_nonzero[k, j]:
                         self.__set_block(i, j)
-                        self.__data[i, j] += self.__data[i, k]@self.__data[k, j]
+                        self.__data[i, j] += self.__data[i, k] @ self.__data[k, j]
 
                 if self.__is_nonzero[i, j]:
                     self.__data[i, j] = -la.solve_triangular(self.__data[i, i], self.__data[i, j],
@@ -787,16 +787,16 @@ class BlockMatrix:
 
         for i in range(self.shape[0]):
 
-            self.__data[i, i] = self.__data[i, i]@self.__data[i, i].T
+            self.__data[i, i] = self.__data[i, i] @ self.__data[i, i].T
             for j in range(i + 1, self.shape[0]):
                 if self.__is_nonzero[i, j]:
-                    self.__data[i, i] += self.__data[i, j]@self.__data[i, j].T
+                    self.__data[i, i] += self.__data[i, j] @ self.__data[i, j].T
                     self.__data[i, j] = self.__data[i, j] @ self.__data[j, j].T
 
                 for k in range(j + 1, self.shape[0]):
                     if self.__is_nonzero[i, k] and self.__is_nonzero[j, k]:
                         self.__set_block(i, j)
-                        self.__data[i, j] += self.__data[i, k]@self.__data[j, k].T
+                        self.__data[i, j] += self.__data[i, k] @ self.__data[j, k].T
 
 
 class NormalEquations:
@@ -866,9 +866,9 @@ class NormalEquations:
             estimated posterior sigma
         """
         Wx = self.matrix.multiply_triangular(solution)
-        ePe = self.observation_square_sum - 2 * np.sum(self.right_hand_side * solution) + np.sum(Wx*Wx)
+        ePe = self.observation_square_sum - 2 * np.sum(self.right_hand_side * solution) + np.sum(Wx * Wx)
 
-        return np.sqrt(ePe/(self.observation_count - solution.shape[0])).squeeze()
+        return np.sqrt(ePe / (self.observation_count - solution.shape[0])).squeeze()
 
     def compute_covariance(self, sparse=True):
         """
