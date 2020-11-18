@@ -144,9 +144,9 @@ class Grid(metaclass=abc.ABCMeta):
 
         """
         if mask is None:
-            mask = np.ones(self.point_count(), dtype=bool)
+            mask = np.ones(self.point_count, dtype=bool)
 
-        areas = self.area()
+        areas = self.area
         if areas is not None:
             return np.sum(areas * self.values[mask]) / np.sum(areas)
         else:
