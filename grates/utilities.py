@@ -555,7 +555,6 @@ def kaula_curve(min_degree, max_degree, kaula_factor=1e-10, kaula_power=4.0):
     anm = np.zeros((max_degree + 1, max_degree + 1))
     for n in range(min_degree, max_degree + 1):
         row_index, col_index = grates.gravityfield.degree_indices(n)
-
-        anm[row_index, col_index] = kaula_factor * np.power(n, -kaula_factor)
+        anm[row_index, col_index] = kaula_factor * np.power(float(n), -float(kaula_power))
 
     return anm
