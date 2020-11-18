@@ -391,6 +391,25 @@ class AutoregressiveModelSequence:
 
         return NormalEquations(normals_matrix, right_hand_side, observation_square_sum, observation_count)
 
+    def covariance_function(self, maximum_lag):
+        """
+        Compute the covariance function of the AR model sequence.
+
+        Parameters
+        ----------
+        maximum_lag : int
+            maximum lag up to which to compute the covariance function.
+
+        Returns
+        -------
+        covariance_func : list of ndarray
+            vector valued covariance function of the AR sequence with increasing lags
+        """
+        normals = self.normal_equations(max(maximum_lag + 1, self.maximum_order + 1))
+        normals.compute_covariance(sparse=False)
+
+        return [normals.matrix[0, k] for k in range(maximum_lag + 1)]
+
 
 class BlockMatrix:
     """
@@ -567,7 +586,7 @@ class BlockMatrix:
         self.__check_bounds(key[0], key[1])
         self.__check_item(key[0], key[1], value)
 
-        self.__data[key] = value
+        self.__data[key] = value.copy()
         self.__is_nonzero[key] = True
 
     def __getitem__(self, key):
