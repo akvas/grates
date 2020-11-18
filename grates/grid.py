@@ -152,6 +152,35 @@ class Grid(metaclass=abc.ABCMeta):
         else:
             return np.mean(self.values[mask])
 
+    def rms(self, mask=None):
+        """
+        Compute the weighted RMS of grid points, potentially with a mask. The individual points are weighted
+        by their area elements.
+
+        Parameters
+        ----------
+        mask : array_like(point_count), None
+            boolean array with the same shape as the value array. If None, all points are averaged.
+
+        Returns
+        -------
+        mean : float
+            weighted mean over all grid points in mask
+
+        See Also
+        --------
+        grates.grid.GeographicGrid.create_mask : member function which creates masks from polygons
+
+        """
+        if mask is None:
+            mask = np.ones(self.point_count, dtype=bool)
+
+        areas = self.area
+        if areas is not None:
+            return np.sqrt(np.sum(areas * self.values[mask]**2) / np.sum(areas))
+        else:
+            return np.sqrt(np.mean(self.values[mask]**2))
+
     def create_mask(self, basin):
         """
         Create a mask (boolean array) for the Geographic grid instance based on a polygon.
