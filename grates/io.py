@@ -384,11 +384,11 @@ class SINEXStatistics(SINEXBlock):
             if line.startswith(b'-'):
                 break
             if line[1:].startswith(b'NUMBER OF DEGREES OF FREEDOM'):
-                self.degrees_of_freedom = int(line[32:])
+                self.degrees_of_freedom = int(float(line[32:]))
             elif line[1:].startswith(b'NUMBER OF OBSERVATIONS'):
-                self.observation_count = int(line[32:])
+                self.observation_count = int(float(line[32:]))
             elif line[1:].startswith(b'NUMBER OF UNKNOWNS'):
-                self.parameters = int(line[32:])
+                self.parameters = int(float(line[32:]))
             elif line[1:].startswith(b'WEIGHTED SQUARE SUM OF O-C'):
                 self.observation_square_sum = float(line[32:])
 
