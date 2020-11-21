@@ -733,3 +733,181 @@ def gridded_rms(temporal_gravityfield, epochs, kernel='ewh', base_grid=grates.gr
     rms_grid.values = np.sqrt(rms_values / len(epochs))
 
     return rms_grid
+
+
+class CoefficientSequence:
+    """
+    Class representation of the ordering of spherical harmonic coefficients.
+
+    Parameters
+    ----------
+    degrees : array_like(coefficient_count,)
+        spherical harmonic degree of coefficients
+    orders : array_like(coefficient_count,)
+        spherical harmonic order of coefficients
+    basis_functions : array_like(coeffient_count,) containing 'c' or 's'
+        whether the coefficient is a cosine (value 'c') coefficient or sine (value 's') coefficient
+    """
+    def __init__(self, degrees, orders, basis_functions):
+
+        self.degrees = np.asarray(degrees)
+        self.orders = np.asarray(orders)
+        self.basis_functions = np.asarray(basis_functions)
+
+    @property
+    def coefficient_count(self):
+        """Return the number of coefficients in the coefficient sequence."""
+        return self.degrees.size
+
+    def vector_indices(self, degree=None, order=None, basis_function=None):
+        """
+        Return the indices of a coefficient range represented by degree, order, and basis_function.
+
+        Parameters
+        ----------
+        degree : int or None
+            degree of coefficient (if None all degrees are returned).
+        order : int or None
+            order of coefficient (if None all orders are returned).
+        basis_function : str or None
+            basis_function of coefficient ('c' or 's', if None coefficients of both basis functions are returned).
+
+        Returns
+        -------
+        indices : ndarray(m,)
+            indices of the given coefficient range as integer ndarray
+        """
+        mask = np.ones(self.coefficient_count, dtype=bool)
+
+        if degree is not None:
+            mask = np.logical_and(mask, self.degrees == degree)
+
+        if order is not None:
+            mask = np.logical_and(mask, self.orders == order)
+
+        if basis_function is not None:
+            mask = np.logical_and(mask, self.basis_functions == basis_function)
+
+        return np.where(mask)[0]
+
+    @staticmethod
+    def reorder_indices(source_sequence, target_sequence):
+        """
+        Generate an index vector to reorder coefficient given in a source sequence into target sequence.
+
+        Parameters
+        ----------
+        source_sequence : CoefficientSequence
+            source coefficient sequence
+        target_sequence : CoefficientSequence
+            target coeffcient sequence
+        """
+        index = []
+        for k in range(target_sequence.coefficient_count):
+            other_idx = source_sequence.vector_index(target_sequence.degrees[k], target_sequence.orders[k], target_sequence.basis_functions[k])
+            if len(other_idx) > 0:
+                index.append(other_idx[0])
+
+        return np.array(index)
+
+
+class CoefficientSequenceDegreeWise(CoefficientSequence):
+    """
+    Degreewise coefficient sequence. Coefficients are ordered by ascending degree and order with
+    alternating cosine and sine coefficients.
+
+    C00, C10, C11, S11, C20, C21, S21, C22, S22, ...
+
+    Parameters
+    ----------
+    min_degree : int
+        minimum degree in sequence
+    max_degree : int
+        maximum degree in sequence
+    """
+    def __init__(self, min_degree, max_degree):
+
+        coefficient_count = (max_degree + 1) * (max_degree + 1) - min_degree * min_degree
+
+        degrees = np.empty(coefficient_count, dtype=int)
+        orders = np.zeros(coefficient_count, dtype=int)
+        basis_functions = np.full(coefficient_count, 'c', dtype=str)
+
+        index = 0
+        for n in range(min_degree, max_degree + 1):
+            degrees[index] = n
+            index += 1
+
+            for m in range(1, n + 1):
+                degrees[index:index + 2] = n
+                orders[index:index + 2] = m
+                basis_functions[index + 1] = 's'
+                index += 2
+
+        super(CoefficientSequenceDegreeWise, self).__init__(degrees, orders, basis_functions)
+
+
+class CoefficientSequenceOrderWise(CoefficientSequence):
+    """
+    Orderwise coefficient sequence. Coefficients are ordered by increasing order.
+    For each order first cosine coefficients are ordered by increasing degree, the sine
+    coefficients are ordered by increasing degree.
+
+    Parameters
+    ----------
+    min_degree : int
+        minimum degree in sequence
+    max_degree : int
+        maximum degree in sequence
+    """
+    def __init__(self, min_degree, max_degree):
+
+        coefficient_count = (max_degree + 1) * (max_degree + 1) - min_degree * min_degree
+
+        degrees = np.empty(coefficient_count, dtype=int)
+        orders = np.zeros(coefficient_count, dtype=int)
+        basis_functions = np.full(coefficient_count, 'c', dtype=str)
+
+        index = 0
+        for n in range(min_degree, max_degree + 1):
+            degrees[index] = n
+            index += 1
+
+        for m in range(1, max_degree + 1):
+            for n in range(max(min_degree, m), max_degree + 1):
+                degrees[index] = n
+                orders[index] = m
+                index += 1
+
+            for n in range(max(min_degree, m), max_degree + 1):
+                degrees[index] = n
+                orders[index] = m
+                basis_functions[index] = 's'
+                index += 1
+
+        super(CoefficientSequenceOrderWise, self).__init__(degrees, orders, basis_functions)
+
+
+class CoefficientSequenceFlatArray(CoefficientSequence):
+    """
+    Coefficient sequence of a flattened coefficient array.
+
+    Parameters
+    ----------
+    max_degree : int
+        maximum degree in sequence
+    """
+    def __init__(self, max_degree):
+
+        degrees = np.empty((max_degree + 1, max_degree + 1), dtype=int)
+        orders = np.empty((max_degree + 1, max_degree + 1), dtype=int)
+        basis_functions = np.empty((max_degree + 1, max_degree + 1), dtype=str)
+
+        for n in range(max_degree + 1):
+            degrees[degree_indices(n)] = n
+            orders[order_indices(max_degree, n)] = n
+
+        basis_functions[np.tril_indices(basis_functions.shape[0])] = 'c'
+        basis_functions[np.triu_indices(basis_functions.shape[0], 1)] = 's'
+
+        super(CoefficientSequenceFlatArray, self).__init__(degrees.flatten(), orders.flatten(), basis_functions.flatten())
