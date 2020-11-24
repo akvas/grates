@@ -11,13 +11,13 @@ import grates.time
 import pkg_resources
 
 
-def legendre_functions(nmax, colat):
+def legendre_functions(max_degree, colat):
     """
     Associated fully normalized Legendre functions (1st kind).
 
     Parameters
     ----------
-    nmax : int
+    max_degree : int
         maximum spherical harmonic degree to compute
     colat : float, array_like(m,)
         co-latitude of evaluation points in radians
@@ -30,21 +30,24 @@ def legendre_functions(nmax, colat):
 
     """
     theta = np.atleast_1d(colat)
-    function_array = np.empty((theta.size, nmax + 1, nmax + 1))
+    function_array = np.empty((theta.size, max_degree + 1, max_degree + 1))
+    if max_degree == 0:
+        function_array[:, 0, 0] = 1.0
+        return function_array
 
     function_array[:, 0, 0] = 1.0  # initial values for recursion
     function_array[:, 1, 0] = np.sqrt(3) * np.cos(theta)
     function_array[:, 1, 1] = np.sqrt(3) * np.sin(theta)
 
-    for n in range(2, nmax + 1):
+    for n in range(2, max_degree + 1):
         function_array[:, n, n] = np.sqrt((2.0 * n + 1.0) / (2.0 * n)) * np.sin(theta) * \
                                   function_array[:, n - 1, n - 1]
 
-    index = np.arange(nmax + 1)
+    index = np.arange(max_degree + 1)
     function_array[:, index[2:], index[1:-1]] = np.sqrt(2 * index[2:] + 1) * np.cos(theta[:, np.newaxis]) * \
                                                 function_array[:, index[1:-1], index[1:-1]]
 
-    for row in range(2, nmax + 1):
+    for row in range(2, max_degree + 1):
         n = index[row:]
         m = index[0:-row]
         function_array[:, n, m] = np.sqrt((2.0 * n - 1.0) / (n - m) * (2.0 * n + 1.0) / (n + m)) * \
@@ -52,37 +55,40 @@ def legendre_functions(nmax, colat):
                                   np.sqrt((2.0 * n + 1.0) / (2.0 * n - 3.0) * (n - m - 1.0) / (n - m) *
                                           (n + m - 1.0) / (n + m)) * function_array[:, n - 2, m]
 
-    for m in range(1, nmax + 1):
+    for m in range(1, max_degree + 1):
         function_array[:, m - 1, m:] = function_array[:, m:, m]
 
     return function_array
 
 
-def legendre_polynomials(nmax, colat):
+def legendre_polynomials(max_degree, colat):
     """
     Fully normalized Legendre polynomials.
 
     Parameters
     ----------
-    nmax : int
+    max_degree : int
         maximum spherical harmonic degree to compute
     colat : float, array_like(m,)
         co-latitude of evaluation points in radians
 
     Returns
     -------
-    Pn : array_like(m, nmax + 1)
+    Pn : array_like(m, max_degree + 1)
         Array containing the fully normalized Legendre polynomials. Pn[:, n] returns the
         Legendre polynomial of degree n and order m for all points.
 
     """
+    if max_degree == 0:
+        return np.ones((np.atleast_1d(colat).size, 1))
+
     t = np.cos(np.atleast_1d(colat))
-    polynomial_array = np.empty((t.size, nmax + 1))
+    polynomial_array = np.empty((t.size, max_degree + 1))
 
     polynomial_array[:, 0] = 1  # initial values for recursion
     polynomial_array[:, 1] = np.sqrt(3) * t
 
-    for n in range(2, nmax + 1):
+    for n in range(2, max_degree + 1):
         polynomial_array[:, n] = np.sqrt((2.0 * n - 1.0) * (2.0 * n + 1.0)) / n * \
                                  t * polynomial_array[:, n - 1] - \
                                  np.sqrt((2.0 * n + 1.0) / (2.0 * n - 3.0)) * (n - 1.0) / n * \
