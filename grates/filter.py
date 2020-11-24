@@ -348,7 +348,89 @@ class BlockedNormalsVDK(OrderWiseFilter):
         super(BlockedNormalsVDK, self).__init__(array)
 
 
-class VDK(SpatialFilter):
+class GeneralMatrix(SpatialFilter):
+    """
+    Spherical harmonic filter defined by an arbitrary square matrix.
+
+    Parameters
+    ----------
+    normal_equation_matrix : ndarray
+        normal equation matrix in degree wise coefficient order
+        min_degree : int
+        minimum degree contained in the normal equation matrix
+    min_degree : int
+        minimum degree contained in the filter matrix
+    max_degree : int
+        maximum degree contained in the filter matrix
+    """
+    def __init__(self, matrix, min_degree, max_degree):
+
+        if matrix.ndim > 2 or matrix.shape[0] != matrix.shape[1]:
+            raise ValueError('filter matrix must be square (got {0})'.format(str(matrix.shape)))
+        if (max_degree + 1) * (max_degree + 1) - min_degree * min_degree != matrix.shape[0]:
+            raise ValueError('filter matrix dimensions do not correspond to min_degree and max_degree (got {0}, {1:d}, {2:d})'.format(str(matrix.shape), min_degree, max_degree))
+
+        self.__W = matrix
+        self.__nmin = min_degree
+        self.__nmax = max_degree
+
+    def filter(self, gravityfield):
+        """
+        Apply the filter to a PotentialCoefficients instance.
+
+        Parameters
+        ----------
+        gravityfield : PotentialCoefficients instance
+            gravity field to be filtered, remains unchanged
+
+        Returns
+        -------
+        result : PotentialCoefficients instance
+            filterd copy of input
+        """
+        result = gravityfield.copy()
+        max_degree = min(result.max_degree(), self.__nmax)
+
+        x = grates.utilities.ravel_coefficients(gravityfield.anm, self.__nmin, self.__nmax)
+        x_filtered = self.__W @ x
+
+        result.anm = grates.utilities.unravel_coefficients(x_filtered, self.__nmin, max_degree)
+        result.anm[0:self.__nmin, 0:self.__nmin] = gravityfield.anm[0:self.__nmin, 0:self.__nmin].copy()
+
+        return result
+
+    def matrix(self, min_degree, max_degree):
+        """
+        Return dense filter matrix.
+
+        Parameters
+        ----------
+        min_degree : int
+            minimum filter degree
+        max_degree : int
+            maximum filter degree
+
+        Returns
+        -------
+        filter_matrix : ndarray((max_degree + 1)**2 - min_degree**2, (max_degree + 1)**2 - min_degree**2)
+            2d ndarray representing the filter
+        """
+        if self.__nmin == min_degree and self.__nmax == max_degree:
+            return self.__W.copy()
+        else:
+            target_sequence = grates.gravityfield.CoefficientSequenceDegreeWise(min_degree, max_degree)
+            source_sequence = grates.gravityfield.CoefficientSequenceDegreeWise(self.__nmin, self.__nmax)
+
+            W = np.zeros((target_sequence.coefficient_count, target_sequence.coefficient_count))
+
+            idx_source, idx_target = grates.gravityfield.CoefficientSequence.reorder_indices(source_sequence, target_sequence)
+
+            W[np.ix_(idx_target, idx_target)] = self.__W[np.ix_(idx_source, idx_source)].copy()
+
+            return W
+
+
+class VDK(GeneralMatrix):
     """
     Implementation of the VDK filter [1]_.
 
