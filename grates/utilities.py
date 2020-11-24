@@ -61,6 +61,54 @@ def legendre_functions(max_degree, colat):
     return function_array
 
 
+def legendre_functions_per_order(max_degree, order, colat):
+    """
+    Compute fully normalized associated Legendre functions for a specific order.
+
+    Parameters
+    ----------
+    max_degree : int
+       maximum spherical harmonic degree to compute
+    order : int
+        order for which the Legendre functions should be computed
+    colat : float, array_like(m,)
+        co-latitude of evaluation points in radians
+
+    Returns
+    -------
+    Pnm : array_like(m, max_degree + 1 - order)
+        fully normalized associated Legendre functions for the given order
+    """
+    if order == 0:
+        return legendre_polynomials(max_degree, colat)
+
+    t = np.cos(np.atleast_1d(colat))
+    s = np.sqrt(1 - t**2)
+    coefficient_count = max_degree + 1 - order
+
+    function_array = np.empty((t.size, coefficient_count))
+
+    recursion_values = np.empty((t.size, 3))
+    recursion_values[:, 0] = 1
+    recursion_values[:, 1] = np.sqrt(3) * s
+
+    for n in range(2, order + 1):
+        recursion_values[:, 2] = np.sqrt((2 * n + 1) / (2 * n)) * s * recursion_values[:, 1]
+        recursion_values = np.roll(recursion_values, -1, axis=1)
+
+    function_array[:, 0] = recursion_values[:, 1]
+    if coefficient_count > 1:
+        function_array[:, 1] = np.sqrt(2 * order + 3) * t * function_array[:, 0]
+
+    for n in range(order + 2, max_degree + 1):
+        function_array[:, n - order] = np.sqrt((2 * n - 1) / (n - order) * (2 * n + 1) / (n + order)) * \
+            t * function_array[:, n - 1 - order] - \
+            np.sqrt((2 * n + 1) / (2 * n - 3) * (n - order - 1) / (n - order) * (n + order - 1) / (n + order)) * \
+            function_array[:, n - 2 - order]
+
+    return function_array
+
+
 def legendre_polynomials(max_degree, colat):
     """
     Fully normalized Legendre polynomials.
