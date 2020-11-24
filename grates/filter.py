@@ -537,7 +537,7 @@ class FilterKernel:
         """
         kn = grates.kernel.get_kernel(kernel)
 
-        inverse_coefficients = kn.inverse_coefficient_array(self.__max_degree)
+        inverse_coefficients = kn.inverse_coefficient_array(0, self.__max_degree)
 
         spherical_harmonics_source = grates.utilities.spherical_harmonics(self.__max_degree,
                                                                           np.pi * 0.5 - source_latitude,
@@ -545,7 +545,7 @@ class FilterKernel:
         v1 = grates.utilities.ravel_coefficients(spherical_harmonics_source * inverse_coefficients,
                                 self.__min_degree, self.__max_degree) @ self.__matrix
 
-        coefficients = kn.coefficient_array(self.__max_degree)
+        coefficients = kn.coefficient_array(0, self.__max_degree)
         spherical_harmonics_eval = grates.utilities.spherical_harmonics(self.__max_degree, np.pi * 0.5 - eval_latitude,
                                                                      eval_longitude) * coefficients
 
