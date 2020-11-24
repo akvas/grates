@@ -464,10 +464,7 @@ class VDK(GeneralMatrix):
         NP = normal_equation_matrix.copy()
         NP.flat[::NP.shape[0]+1] = np.diag(normal_equation_matrix) + grates.utilities.ravel_coefficients(coefficient_weights, min_degree, max_degree)
 
-        self.__W = np.linalg.solve(NP, normal_equation_matrix)
-
-        self.__nmin = min_degree
-        self.__nmax = max_degree
+        super(VDK, self).__init__(np.linalg.solve(NP, normal_equation_matrix), min_degree, max_degree)
 
     def filter(self, gravityfield):
         """
@@ -494,27 +491,6 @@ class VDK(GeneralMatrix):
         result.anm[0:self.__nmin, 0:self.__nmin] = gravityfield.anm[0:self.__nmin, 0:self.__nmin].copy()
 
         return result
-
-    def matrix(self, min_degree, max_degree):
-        """
-        Return dense filter matrix.
-
-        Parameters
-        ----------
-        min_degree : int
-            minimum filter degree
-        max_degree : int
-            maximum filter degree
-
-        Returns
-        -------
-        filter_matrix : ndarray((max_degree + 1)**2 - min_degree**2, (max_degree + 1)**2 - min_degree**2)
-            2d ndarray representing the filter
-        """
-        if self.__nmin == min_degree and self.__nmax == max_degree:
-            return self.__W.copy()
-        else:
-            raise NotImplementedError('generic min/max degrees not yet implemented')
 
 
 class FilterKernel:
