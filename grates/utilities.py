@@ -266,7 +266,7 @@ def ravel_coefficients(array, min_degree=0, max_degree=None):
     coefficient_count = (max_degree + 1) * (max_degree + 1) - min_degree * min_degree
 
     if array.ndim == 2:
-        x = np.empty(coefficient_count)
+        x = np.zeros(coefficient_count, dtype=array.dtype)
 
         idx = 0
         for n in range(min_degree, max_degree + 1):
@@ -278,7 +278,7 @@ def ravel_coefficients(array, min_degree=0, max_degree=None):
                 idx += 2
 
     elif array.ndim == 3:
-        x = np.empty((array.shape[0], coefficient_count))
+        x = np.zeros((array.shape[0], coefficient_count), dtype=array.dtype)
 
         idx = 0
         for n in range(min_degree, max_degree + 1):
@@ -317,7 +317,7 @@ def unravel_coefficients(vector, min_degree=0, max_degree=None):
     if max_degree is None:
         max_degree = int(np.sqrt(vector.size + min_degree * min_degree) - 1)
 
-    array = np.zeros((max_degree + 1, max_degree + 1))
+    array = np.zeros((max_degree + 1, max_degree + 1), dtype=vector.dtype)
 
     idx = 0
     for n in range(min_degree, max_degree + 1):
