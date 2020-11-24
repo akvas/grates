@@ -68,9 +68,8 @@ class Gaussian(SpatialFilter):
             wn[n] = kn.coefficient(n)
 
         result = gravityfield.copy()
-        for n in range(2, nmax+1):
-            result.anm[n, 0:n + 1] *= wn[n]
-            result.anm[0:n, n] *= wn[n]
+        for n in range(2, nmax + 1):
+            result.anm[grates.gravityfield.degree_indices(n)] *= wn[n]
 
         return result
 
@@ -93,8 +92,7 @@ class Gaussian(SpatialFilter):
         kn = grates.kernel.Gauss(self.radius)
         filter_array = np.zeros((max_degree + 1, max_degree + 1))
         for n in range(min_degree, max_degree + 1):
-            filter_array[n, 0:n + 1] = kn.coefficient(n)
-            filter_array[0:n, n] = kn.coefficient(n)
+            filter_array[grates.gravityfield.degree_indices(n)] = kn.coefficient(n)
 
         return np.diag(grates.utilities.ravel_coefficients(filter_array, min_degree, max_degree))
 
