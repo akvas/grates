@@ -312,6 +312,38 @@ class Grid(metaclass=abc.ABCMeta):
 
         return A @ self.synthesis_matrix(min_degree, max_degree, kernel, GM, R)
 
+    def to_potential_coefficients(self, min_degree, max_degree, kernel='potential', GM=3.9860044150e+14, R=6.3781363000e+06):
+        """
+        Perform spherical harmonic analysis of the grid values.
+
+        Parameters
+        ----------
+        min_degree : int
+            minimum degree of the analysis
+        max_degree : int
+            maximum degree of the analysis
+        kernel : str
+            name of the grid value kernel
+        GM : float
+            geocentric gravitational constant
+        R : reference radius
+
+        Returns
+        -------
+        potential_coefficients : PotentialCoefficients
+            result of the spherical harmonic analysis as potential coefficients
+        """
+        if self.values is None:
+            raise ValueError('grid has no values to propagate to potential coefficients')
+
+        A = self.analysis_matrix(min_degree, max_degree, kernel, GM, R)
+        x = A @ self.values
+
+        coeffs = grates.gravityfield.PotentialCoefficients(GM, R)
+        coeffs.anm = grates.utilities.unravel_coefficients(x, min_degree, max_degree)
+
+        return coeffs
+
 
 class RegularGrid(Grid):
     """
