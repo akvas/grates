@@ -269,7 +269,7 @@ def ravel_coefficients(array, min_degree=0, max_degree=None):
         x = np.zeros(coefficient_count, dtype=array.dtype)
 
         idx = 0
-        for n in range(min_degree, max_degree + 1):
+        for n in range(min_degree, array.shape[-1]):
             x[idx] = array[n, 0]
             idx += 1
             for m in range(1, n + 1):
@@ -281,7 +281,7 @@ def ravel_coefficients(array, min_degree=0, max_degree=None):
         x = np.zeros((array.shape[0], coefficient_count), dtype=array.dtype)
 
         idx = 0
-        for n in range(min_degree, max_degree + 1):
+        for n in range(min_degree, array.shape[-1]):
             x[:, idx] = array[:, n, 0]
             idx += 1
             for m in range(1, n + 1):
