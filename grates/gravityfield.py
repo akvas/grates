@@ -888,6 +888,46 @@ class CoefficientSequenceOrderWise(CoefficientSequence):
         super(CoefficientSequenceOrderWise, self).__init__(degrees, orders, basis_functions)
 
 
+class CoefficientSequenceOrderWiseAlternating(CoefficientSequence):
+    """
+    Orderwise coefficient sequence. Coefficients are ordered by increasing order.
+    For each order first cosine coefficients are ordered by increasing degree, with alternating
+    cosine/sine coefficients per order.
+
+    Parameters
+    ----------
+    min_degree : int
+        minimum degree in sequence
+    max_degree : int
+        maximum degree in sequence
+    """
+    def __init__(self, min_degree, max_degree):
+
+        coefficient_count = (max_degree + 1) * (max_degree + 1) - min_degree * min_degree
+
+        degrees = np.empty(coefficient_count, dtype=int)
+        orders = np.zeros(coefficient_count, dtype=int)
+        basis_functions = np.full(coefficient_count, 'c', dtype=str)
+
+        index = 0
+        for n in range(min_degree, max_degree + 1):
+            degrees[index] = n
+            index += 1
+
+        for m in range(1, max_degree + 1):
+            for n in range(max(min_degree, m), max_degree + 1):
+                degrees[index] = n
+                orders[index] = m
+                index += 1
+
+                degrees[index] = n
+                orders[index] = m
+                basis_functions[index] = 's'
+                index += 1
+
+        super(CoefficientSequenceOrderWiseAlternating, self).__init__(degrees, orders, basis_functions)
+
+
 class CoefficientSequenceFlatArray(CoefficientSequence):
     """
     Coefficient sequence of a flattened coefficient array.
