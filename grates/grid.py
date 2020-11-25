@@ -195,7 +195,7 @@ class Grid(metaclass=abc.ABCMeta):
         mask : array_like(m,n)
             boolean array of size(nlons, nlats), True for points inside the polygon, False for points outside.
         """
-        return basin.contains_points(self.longitude(), self.latitude())
+        return basin.contains_points(self.longitude, self.latitude)
 
     def distance_matrix(self):
         """
@@ -206,10 +206,10 @@ class Grid(metaclass=abc.ABCMeta):
         psi : ndarray(m, m)
             spherical distance between all m grid points in radians
         """
-        point_count = self.point_count()
+        point_count = self.point_count
         psi = np.empty((point_count, point_count))
 
-        lons, lats = self.longitude(), self.latitude()
+        lons, lats = self.longitude, self.latitude
 
         for k in range(point_count):
             psi[k, k:] = spherical_distance(lons[k], lats[k], lons[k:], lats[k:], r=1)
@@ -233,7 +233,7 @@ class Grid(metaclass=abc.ABCMeta):
         grid : IrregularGrid instance
             subset of grid points as IrregularGrid instance
         """
-        lons, lats, areas = self.longitude(), self.latitude(), self.area()
+        lons, lats, areas = self.longitude, self.latitude, self.area
 
         if invert_mask:
             grid_mask = ~mask
