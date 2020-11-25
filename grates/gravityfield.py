@@ -801,14 +801,23 @@ class CoefficientSequence:
             source coefficient sequence
         target_sequence : CoefficientSequence
             target coeffcient sequence
-        """
-        index = []
-        for k in range(target_sequence.coefficient_count):
-            other_idx = source_sequence.vector_index(target_sequence.degrees[k], target_sequence.orders[k], target_sequence.basis_functions[k])
-            if len(other_idx) > 0:
-                index.append(other_idx[0])
 
-        return np.array(index)
+        Returns
+        -------
+        source_indicies : ndarray(m,)
+            indices of common parameters in source sequence
+        target_indices : ndarray(m,)
+            indices of common parameters in target sequence
+        """
+        source_indices = []
+        target_indices = []
+        for k in range(target_sequence.coefficient_count):
+            other_idx = source_sequence.vector_indices(target_sequence.degrees[k], target_sequence.orders[k], target_sequence.basis_functions[k])
+            if len(other_idx) > 0:
+                source_indices.append(other_idx[0])
+                target_indices.append(k)
+
+        return np.array(source_indices), np.array(target_indices)
 
 
 class CoefficientSequenceDegreeWise(CoefficientSequence):
