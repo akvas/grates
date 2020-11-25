@@ -67,18 +67,34 @@ class Kernel(metaclass=abc.ABCMeta):
         pass
 
     def inverse_coefficient(self, n, r=6378136.6, colat=0):
-        """Return inverse kernel coefficient."""
+        """
+        Return inverse kernel coefficient.
+
+        Parameters
+        ----------
+        n : int
+            degree of kernel coefficient
+        r : float, ndarray(m,)
+            evaluation radius
+        colat : float, ndarray(m,)
+            colatitude of evaluation points
+
+        Returns
+        -------
+        inverse_coeff : float, ndarray(m,)
+            inverse kernel coefficient for degree n
+        """
         return self.coefficient(n, r, colat)**-1
 
-    def coefficients(self, max_degree, r=6378136.6, colat=0, min_degree=0):
+    def coefficients(self, min_degree, max_degree, r=6378136.6, colat=0):
         """Return kernel coefficients up to a given maximum degree."""
-        return np.array([self.coefficient(n, r, colat) for n in range(min_degree, max_degree + 1)])
+        return np.vstack([self.coefficient(n, r, colat) for n in range(min_degree, max_degree + 1)]).T
 
-    def inverse_coefficients(self, max_degree, r=6378136.6, colat=0, min_degree=0):
+    def inverse_coefficients(self, min_degree, max_degree, r=6378136.6, colat=0):
         """Return inverse kernel coefficients up to a given maximum degree."""
-        return np.array([self.inverse_coefficient(n, r, colat) for n in range(min_degree, max_degree + 1)])
+        return np.vstack([self.inverse_coefficient(n, r, colat) for n in range(min_degree, max_degree + 1)]).T
 
-    def coefficient_array(self, max_degree, r=6378136.6, colat=0, min_degree=0):
+    def coefficient_array(self, min_degree, max_degree, r=6378136.6, colat=0):
         """Return kernel coefficients up to a given maximum degree as spherical harmonic coefficient array."""
         count = max(np.asarray(r).size, np.asarray(colat).size)
 
@@ -89,7 +105,7 @@ class Kernel(metaclass=abc.ABCMeta):
 
         return kn_array
 
-    def inverse_coefficient_array(self, max_degree, r=6378136.6, colat=0, min_degree=0):
+    def inverse_coefficient_array(self, min_degree, max_degree, r=6378136.6, colat=0):
         """Return inverse kernel coefficients up to a given maximum degree as spherical harmonic coefficient array."""
         count = max(np.asarray(r).size, np.asarray(colat).size)
 
