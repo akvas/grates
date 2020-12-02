@@ -356,7 +356,7 @@ def normal_gravity(r, colat):
     xyz[:, 0] = r * np.sin(colat)
     xyz[:, 2] = r * np.cos(colat)
 
-    _, lat, h = grates.grid.cartesian2ellipsoidal(xyz, a, f)
+    _, lat, h = grates.grid.cartesian2geodetic(xyz, a, f)
 
     ga = 9.7803267715
     k = 0.001931851353
