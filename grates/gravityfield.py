@@ -157,10 +157,10 @@ class PotentialCoefficients:
         elif trigonometric_function in ('s', 'sin', 'sine') and order > 0:
             self.anm[order-1, degree] = value
 
-    def truncate(self, nmax):
+    def truncate(self, max_degree):
         """Truncate a PotentialCoefficients instance to a new maximum spherical harmonic degree."""
-        if nmax < self.max_degree:
-            self.anm = self.anm[0:nmax+1, 0:nmax+1]
+        if max_degree < self.max_degree:
+            self.anm = self.anm[0:max_degree+1, 0:max_degree+1]
 
     def __degree_array(self):
         """Return degrees of all coefficients as numpy array"""

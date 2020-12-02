@@ -183,14 +183,14 @@ def legendre_summation(coefficients, colat):
     return coefficients[0] + np.sqrt(3) * t * b1 - 0.5 * np.sqrt(5) * b2
 
 
-def trigonometric_functions(nmax, lon):
+def trigonometric_functions(max_degree, lon):
     """
     Convenience function to compute the trigonometric functions (cosine, sine) for the use
     in spherical harmonics.
 
     Parameters
     ----------
-    nmax : int
+    max_degree : int
         maximum spherical harmonic degree to compute
     lon : float, array_like(m,)
        longitude of evaluation points in radians
@@ -203,22 +203,22 @@ def trigonometric_functions(nmax, lon):
 
     """
     longitude = np.atleast_1d(lon)
-    cs_array = np.empty((longitude.size, nmax + 1, nmax + 1))
+    cs_array = np.empty((longitude.size, max_degree + 1, max_degree + 1))
     cs_array[:, :, 0] = 1
-    for m in range(1, nmax + 1):
+    for m in range(1, max_degree + 1):
         cs_array[:, m:, m] = np.cos(m * longitude)[:, np.newaxis]
         cs_array[:, m - 1, m:] = np.sin(m * longitude)[:, np.newaxis]
 
     return cs_array
 
 
-def spherical_harmonics(nmax, colat, lon):
+def spherical_harmonics(max_degree, colat, lon):
     """
     Fully normalized spherical harmonics.
 
     Parameters
     ----------
-    nmax : int
+    max_degree : int
        maximum spherical harmonic degree to compute
     colat : float, array_like(m,)
        co-latitude of evaluation points in radians
@@ -234,7 +234,7 @@ def spherical_harmonics(nmax, colat, lon):
     """
     longitude = np.atleast_1d(lon)
 
-    sh_array = legendre_functions(nmax, colat)
+    sh_array = legendre_functions(max_degree, colat)
     for m in range(1, nmax + 1):
         sh_array[:, m:, m] *= np.cos(m * longitude)[:, np.newaxis]
         sh_array[:, m - 1, m:] *= np.sin(m * longitude)[:, np.newaxis]
