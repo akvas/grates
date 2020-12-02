@@ -385,7 +385,7 @@ def normal_gravity(r, colat, a=6378137.0, f=298.2572221010 ** -1, convergence_th
     return gamma0 - 2 * ga / a * (1 + f + m + (-3 * f + 5 * m / 2) * sin2) * h + 3 * ga / a ** 2 * h ** 2
 
 
-def geocentric_radius(latitude, a=6378137.0, f=298.2572221010 ** -1):
+def geocentric_radius(latitude, a=6378137.0, f=298.2572221010**-1):
     """
     Geocentric radius of a point on the ellipsoid.
 
@@ -409,7 +409,7 @@ def geocentric_radius(latitude, a=6378137.0, f=298.2572221010 ** -1):
     return nu * np.sqrt(np.cos(latitude) ** 2 + (1 - e2) ** 2 * np.sin(latitude) ** 2)
 
 
-def colatitude(latitude, a=6378137.0, f=298.2572221010 ** -1):
+def colatitude(latitude, a=6378137.0, f=298.2572221010**-1):
     """
     Co-latitude of a point on the ellipsoid.
 
@@ -481,7 +481,7 @@ class Oscillation(TemporalBasisFunction):
             t -= grates.time.mjd(self.__reference_epoch)
 
         dmatrix = np.empty((t.size, 2))
-        dmatrix[:, 0] = np.cos(2*np.pi/self.__period * t)
+        dmatrix[:, 0] = np.cos(2 * np.pi / self.__period * t)
         dmatrix[:, 1] = np.sin(2 * np.pi / self.__period * t)
 
         return dmatrix
