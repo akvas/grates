@@ -115,7 +115,7 @@ class OrderWiseFilter(SpatialFilter):
     def __init__(self, orderwise_blocks):
 
         self.__array = orderwise_blocks
-        self.__nmax = orderwise_blocks[0].shape[0]-1
+        self.__nmax = orderwise_blocks[0].shape[0] - 1
 
     def filter(self, gravityfield):
         """
@@ -212,8 +212,8 @@ class DDK(OrderWiseFilter):
             raise ValueError('DDK level must be at least 1 (requested DDK{0:d}).'.format(level))
 
         normals = DDK.__blocked_normals()
-        nmax = normals[0].shape[0]-1
-        weights = 10**(15-level) * np.arange(nmax + 1, dtype=float) ** 4
+        nmax = normals[0].shape[0] - 1
+        weights = 10**(15 - level) * np.arange(nmax + 1, dtype=float) ** 4
         weights[0] = 1
 
         array = []
@@ -252,7 +252,7 @@ class DDK(OrderWiseFilter):
             dense DDK normal equation matrix
         """
         normals = DDK.__blocked_normals()
-        max_degree = normals[0].shape[0]-1
+        max_degree = normals[0].shape[0] - 1
 
         coefficient_count = (max_degree + 1) * (max_degree + 1)
 
@@ -338,7 +338,7 @@ class BlockedNormalsVDK(OrderWiseFilter):
                                                                                               index_array_cosine)]
                 normals.append(np.zeros((coefficient_count, coefficient_count)))
                 normals[-1][min_degree - m:, min_degree - m:] = normal_equation_matrix[np.ix_(index_array_sine,
-                                                                                             index_array_sine)]
+                                                                                              index_array_sine)]
 
         array = []
         for normals_block in normals:
@@ -462,7 +462,7 @@ class VDK(GeneralMatrix):
             coefficient_weights[row_idx, col_idx] = kaula_scale * float(n)**kaula_power
 
         NP = normal_equation_matrix.copy()
-        NP.flat[::NP.shape[0]+1] = np.diag(normal_equation_matrix) + grates.utilities.ravel_coefficients(coefficient_weights, min_degree, max_degree)
+        NP.flat[::NP.shape[0] + 1] = np.diag(normal_equation_matrix) + grates.utilities.ravel_coefficients(coefficient_weights, min_degree, max_degree)
 
         super(VDK, self).__init__(np.linalg.solve(NP, normal_equation_matrix), min_degree, max_degree)
 
@@ -543,11 +543,11 @@ class FilterKernel:
                                                                           np.pi * 0.5 - source_latitude,
                                                                           source_longitude)
         v1 = grates.utilities.ravel_coefficients(spherical_harmonics_source * inverse_coefficients,
-                                self.__min_degree, self.__max_degree) @ self.__matrix
+                                                 self.__min_degree, self.__max_degree) @ self.__matrix
 
         coefficients = kn.coefficient_array(0, self.__max_degree)
         spherical_harmonics_eval = grates.utilities.spherical_harmonics(self.__max_degree, np.pi * 0.5 - eval_latitude,
-                                                                     eval_longitude) * coefficients
+                                                                        eval_longitude) * coefficients
 
         return np.atleast_1d((v1 @ grates.utilities.ravel_coefficients(spherical_harmonics_eval, self.__min_degree,
                                                                        self.__max_degree).T).squeeze())
@@ -583,7 +583,7 @@ class FilterKernel:
                                                                           np.pi * 0.5 - source_latitude,
                                                                           source_longitude)
         v1 = grates.utilities.ravel_coefficients(spherical_harmonics_source * inverse_coefficients,
-                                self.__min_degree, self.__max_degree) @ self.__matrix
+                                                 self.__min_degree, self.__max_degree) @ self.__matrix
 
         coefficients = kn.coefficient_array(self.__max_degree)
         pnm = grates.utilities.legendre_functions(self.__max_degree, np.pi * 0.5 - eval_latitude) * coefficients
@@ -628,7 +628,7 @@ class FilterKernel:
 
         """
         psi_array = np.atleast_1d(psi)
-        theta0 = np.pi*0.5 - (psi_array + central_latitude)
+        theta0 = np.pi * 0.5 - (psi_array + central_latitude)
         x0 = np.vstack(
             (np.sin(theta0) * np.cos(central_longitude), np.sin(theta0) * np.sin(central_longitude), np.cos(theta0)))
 
@@ -639,22 +639,22 @@ class FilterKernel:
         ca = np.cos(azimuth)
         sa = np.sin(azimuth)
 
-        rotation_matrix = np.array([[ca + ux**2*(1 - ca), ux*uy*(1-ca)-uz*sa, ux*uz*(1-ca) + uy*sa],
-                                    [uy*ux*(1-ca)+uz*sa, ca + uy**2*(1-ca), uy*uz*(1-ca)-ux*sa],
-                                    [uz*ux*(1-ca)-uy*sa, uz*uy*(1-ca)+ux*sa, ca+uz**2*(1-ca)]])
-        x = rotation_matrix@x0
+        rotation_matrix = np.array([[ca + ux**2 * (1 - ca), ux * uy * (1 - ca) - uz * sa, ux * uz * (1 - ca) + uy * sa],
+                                    [uy * ux * (1 - ca) + uz * sa, ca + uy**2 * (1 - ca), uy * uz * (1 - ca) - ux * sa],
+                                    [uz * ux * (1 - ca) - uy * sa, uz * uy * (1 - ca) + ux * sa, ca + uz**2 * (1 - ca)]])
+        x = rotation_matrix @ x0
         lon = -np.arctan2(x[1, :], x[0, :])
-        lat = np.pi*0.5 - np.arctan2(np.sqrt(x[0, :]**2 + x[1, :]**2), x[2, :])
+        lat = np.pi * 0.5 - np.arctan2(np.sqrt(x[0, :]**2 + x[1, :]**2), x[2, :])
 
         kn1 = self.evaluate(lon[0], lat[0], lon, lat, kernel=kernel).flatten()
 
         mtf = np.zeros(psi.size)
         for k in range(0, psi_array.size):
-            kn2 = self.evaluate(lon[k], lat[k], lon[0:k+1], lat[0:k+1], kernel=kernel).flatten()
+            kn2 = self.evaluate(lon[k], lat[k], lon[0:k + 1], lat[0:k + 1], kernel=kernel).flatten()
 
-            kn = kn1[0:k+1] + kn2
+            kn = kn1[0:k + 1] + kn2
             edge_threshold = min(kn[0], kn[-1])
-            mtf[k] = 0 if np.min(kn) >= edge_threshold else 1 - kn[int(kn.size//2)]/np.max(kn)
+            mtf[k] = 0 if np.min(kn) >= edge_threshold else 1 - kn[int(kn.size // 2)] / np.max(kn)
 
         return mtf
 
@@ -700,7 +700,7 @@ class FilterKernel:
         azimuth_array = np.atleast_1d(azimuth)
         spatial_resolution = np.zeros(azimuth_array.size)
 
-        search_factor = int(nsteps//10)
+        search_factor = int(nsteps // 10)
 
         for i in range(azimuth_array.size):
             ca = np.cos(azimuth_array[i])
@@ -736,7 +736,6 @@ class FilterKernel:
                 if len(peaks) > 0:
                     spatial_resolution[i] = psi[k]
                     break
-
 
             #     edge_threshold = min(kn[0], kn[-1])
             #     mtf = 0 if np.min(kn) >= edge_threshold else 1 - kn[int(kn.size // 2)] / np.max(kn)

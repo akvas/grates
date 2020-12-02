@@ -86,7 +86,7 @@ def loadtn13(file_name, GM=3.986004415E+14, R=6378136.3):
 
                 time_start = dt.datetime.strptime(sline[7], '%Y%m%d.%H%M')
                 time_end = dt.datetime.strptime(sline[8], '%Y%m%d.%H%M')
-                gf.epoch = time_start + (time_end-time_start)*0.5
+                gf.epoch = time_start + (time_end - time_start) * 0.5
 
                 sline = f.readline().split()
                 gf.append('c', int(sline[1]), int(sline[2]), float(sline[3]))

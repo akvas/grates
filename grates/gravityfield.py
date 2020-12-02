@@ -148,25 +148,25 @@ class PotentialCoefficients:
     def append(self, trigonometric_function, degree, order, value):
         """Append a coefficient to a PotentialCoefficients instance."""
         if degree > self.max_degree:
-            tmp = np.zeros((degree+1, degree+1))
+            tmp = np.zeros((degree + 1, degree + 1))
             tmp[0:self.anm.shape[0], 0:self.anm.shape[1]] = self.anm.copy()
             self.anm = tmp
 
         if trigonometric_function in ('c', 'cos', 'cosine'):
             self.anm[degree, order] = value
         elif trigonometric_function in ('s', 'sin', 'sine') and order > 0:
-            self.anm[order-1, degree] = value
+            self.anm[order - 1, degree] = value
 
     def truncate(self, max_degree):
         """Truncate a PotentialCoefficients instance to a new maximum spherical harmonic degree."""
         if max_degree < self.max_degree:
-            self.anm = self.anm[0:max_degree+1, 0:max_degree+1]
+            self.anm = self.anm[0:max_degree + 1, 0:max_degree + 1]
 
     def __degree_array(self):
         """Return degrees of all coefficients as numpy array"""
         da = np.zeros(self.anm.shape, dtype=int)
-        for n in range(self.max_degree+1):
-            da[n, 0:n+1] = n
+        for n in range(self.max_degree + 1):
+            da[n, 0:n + 1] = n
             da[0:n, n] = n
 
         return da
@@ -174,7 +174,7 @@ class PotentialCoefficients:
     def __order_array(self):
         """Return orders of all coefficients as numpy array"""
         da = np.zeros(self.anm.shape, dtype=int)
-        for m in range(1, self.max_degree+1):
+        for m in range(1, self.max_degree + 1):
             da[m - 1, m::] = m
             da[m::, m] = m
 
@@ -183,20 +183,20 @@ class PotentialCoefficients:
     @property
     def max_degree(self):
         """Return maximum spherical harmonic degree of a PotentialCoefficients instance."""
-        return self.anm.shape[0]-1
+        return self.anm.shape[0] - 1
 
     def __add__(self, other):
         """Coefficient-wise addition of two PotentialCoefficients instances."""
         if not isinstance(other, PotentialCoefficients):
-            raise TypeError("unsupported operand type(s) for +: '"+str(type(self))+"' and '"+str(type(other))+"'")
+            raise TypeError("unsupported operand type(s) for +: '" + str(type(self)) + "' and '" + str(type(other)) + "'")
 
         factor = (other.R / self.R) ** other.__degree_array() * (other.GM / self.GM)
         if self.max_degree >= other.max_degree:
             result = self.copy()
-            result.anm[0:other.anm.shape[0], 0:other.anm.shape[1]] += (other.anm*factor)
+            result.anm[0:other.anm.shape[0], 0:other.anm.shape[1]] += (other.anm * factor)
         else:
             result = PotentialCoefficients(self.GM, self.R)
-            result.anm = other.anm*factor
+            result.anm = other.anm * factor
             result.anm[0:self.anm.shape[0], 0:self.anm.shape[1]] += self.anm
             result.epoch = self.epoch
 
@@ -205,14 +205,14 @@ class PotentialCoefficients:
     def __sub__(self, other):
         """Coefficient-wise subtraction of two PotentialCoefficients instances."""
         if not isinstance(other, PotentialCoefficients):
-            raise TypeError("unsupported operand type(s) for -: '"+str(type(self))+"' and '"+str(type(other))+"'")
+            raise TypeError("unsupported operand type(s) for -: '" + str(type(self)) + "' and '" + str(type(other)) + "'")
 
-        return self+(other*-1)
+        return self + (other * -1)
 
     def __mul__(self, other):
         """Multiplication of a PotentialCoefficients instance with a numeric scalar."""
         if not isinstance(other, (int, float)):
-            raise TypeError("unsupported operand type(s) for *: '"+str(type(self))+"' and '"+str(type(other))+"'")
+            raise TypeError("unsupported operand type(s) for *: '" + str(type(self)) + "' and '" + str(type(other)) + "'")
 
         result = self.copy()
         result.anm *= other
@@ -222,9 +222,9 @@ class PotentialCoefficients:
     def __truediv__(self, other):
         """Division of a PotentialCoefficients instance by a numeric scalar."""
         if not isinstance(other, (int, float)):
-            raise TypeError("unsupported operand type(s) for /: '"+str(type(self))+"' and '"+str(type(other))+"'")
+            raise TypeError("unsupported operand type(s) for /: '" + str(type(self)) + "' and '" + str(type(other)) + "'")
 
-        return self*(1.0/other)
+        return self * (1.0 / other)
 
     def degree_amplitudes(self, max_order=None, kernel='potential'):
         """
@@ -244,16 +244,16 @@ class PotentialCoefficients:
         amplitudes : array_like shape (self.max_degree()+1,)
             computed degree amplitudes
         """
-        degrees = np.arange(self.max_degree+1)
+        degrees = np.arange(self.max_degree + 1)
         amplitudes = np.zeros(degrees.size)
 
         kernel = grates.kernel.get_kernel(kernel)
 
         for n in degrees:
             amplitudes[n] = np.sum(self.anm[grates.gravityfield.degree_indices(n, max_order=max_order)] ** 2) * \
-                            kernel.inverse_coefficient(n) ** 2
+                kernel.inverse_coefficient(n) ** 2
 
-        return degrees, np.sqrt(amplitudes)*self.GM/self.R
+        return degrees, np.sqrt(amplitudes) * self.GM / self.R
 
     def coefficient_triangle(self, min_degree=2, max_degree=None):
         """
@@ -274,11 +274,10 @@ class PotentialCoefficients:
         max_degree = self.max_degree if max_degree is None else max_degree
 
         triangle = np.hstack((np.rot90(self.anm, -1), self.anm))
-        mask = np.hstack((np.rot90(np.tril(np.ones(self.anm.shape, dtype=bool)), -1),
-                               np.triu(np.ones(self.anm.shape, dtype=bool), 1)))
+        mask = np.hstack((np.rot90(np.tril(np.ones(self.anm.shape, dtype=bool)), -1), np.triu(np.ones(self.anm.shape, dtype=bool), 1)))
         mask[0:min_degree] = True
 
-        return np.ma.masked_array(triangle, mask=mask)[0:max_degree+1, :]
+        return np.ma.masked_array(triangle, mask=mask)[0:max_degree + 1, :]
 
     def coefficient_amplitudes(self, kernel='potential'):
         """
@@ -299,12 +298,12 @@ class PotentialCoefficients:
         anm_temp = np.zeros(self.anm.shape)
         for n in range(self.max_degree + 1):
             idx_row, idx_col = grates.gravityfield.degree_indices(n)
-            anm_temp[idx_row, idx_col] = self.anm[idx_row, idx_col]*self.GM/self.R*kernel.inverse_coefficient(n)
+            anm_temp[idx_row, idx_col] = self.anm[idx_row, idx_col] * self.GM / self.R * kernel.inverse_coefficient(n)
 
         amp = np.zeros(self.anm.shape)
         amp[:, 0] = np.abs(anm_temp[:, 0])
         for m in range(1, self.max_degree + 1):
-            amp[m:, m] = np.sqrt(anm_temp[m:, m]**2 + anm_temp[m-1, m:]**2)
+            amp[m:, m] = np.sqrt(anm_temp[m:, m]**2 + anm_temp[m - 1, m:]**2)
 
         mask = np.triu(np.ones(amp.shape, dtype=bool), 1)
 
@@ -322,7 +321,7 @@ class PotentialCoefficients:
         """
         phase = np.zeros(self.anm.shape)
         for m in range(1, self.max_degree + 1):
-            phase[m:, m] = np.arctan2(self.anm[m-1, m:], self.anm[m:, m])
+            phase[m:, m] = np.arctan2(self.anm[m - 1, m:], self.anm[m:, m])
 
         mask = np.triu(np.ones(self.anm.shape, dtype=bool), 1)
 
@@ -360,7 +359,7 @@ class PotentialCoefficients:
                 continuation = np.power(self.R / r, n + 1)
                 kn = kernel.inverse_coefficient(n, r, colat)
 
-                CS = np.vstack((np.cos(orders[0:n+1] * grid.meridians), np.sin(orders[1:n+1] * grid.meridians)))
+                CS = np.vstack((np.cos(orders[0:n + 1] * grid.meridians), np.sin(orders[1:n + 1] * grid.meridians)))
                 gridded_values += (P[:, row_idx, col_idx] * (continuation * kn)[:, np.newaxis]) @ CS
 
             output_grid = grid.copy()
@@ -501,20 +500,20 @@ class TimeSeries:
     def __mul__(self, other):
         """Multiplication of a PotentialCoefficients instance with a numeric scalar."""
         if not isinstance(other, (int, float)):
-            raise TypeError("unsupported operand type(s) for *: '"+str(type(self))+"' and '"+str(type(other))+"'")
+            raise TypeError("unsupported operand type(s) for *: '" + str(type(self)) + "' and '" + str(type(other)) + "'")
 
-        return TimeSeries([d.copy()*other for d in self.__data])
+        return TimeSeries([d.copy() * other for d in self.__data])
 
     def __truediv__(self, other):
         """Multiplication of a PotentialCoefficients instance with a numeric scalar."""
         if not isinstance(other, (int, float)):
-            raise TypeError("unsupported operand type(s) for *: '"+str(type(self))+"' and '"+str(type(other))+"'")
+            raise TypeError("unsupported operand type(s) for *: '" + str(type(self)) + "' and '" + str(type(other)) + "'")
 
-        return self*(1.0/other)
+        return self * (1.0 / other)
 
     def __sub__(self, other):
         """Element wise subtraction of two TimeSeries instances."""
-        return self + (other*-1)
+        return self + (other * -1)
 
     def sort(self):
         """Sort data according to epochs of elements."""
@@ -548,8 +547,7 @@ class TimeSeries:
         if t. size < 2:
             raise ValueError("at least two data points are required for interpolation (has {0})")
         if epoch < t[0] or epoch > t[-1]:
-            raise ValueError("extrapolation is not supported (trying to extrapolate to "+str(epoch) +
-                             " from the interval " + str(t[0]) + ", " + str(t[-1]) + ")")
+            raise ValueError("extrapolation is not supported (trying to extrapolate to " + str(epoch) + " from the interval " + str(t[0]) + ", " + str(t[-1]) + ")")
 
         idx = np.searchsorted(t, epoch)
         weight = (epoch - t[idx - 1]).total_seconds() / (t[idx] - t[idx - 1]).total_seconds()
@@ -615,8 +613,8 @@ class TimeSeries:
 
         design_matrix = np.hstack([bf.design_matrix(t) for bf in basis_functions])
         observations = self.to_array()
-        estimated_trend = np.linalg.pinv(design_matrix)@observations
-        observations -= design_matrix@estimated_trend
+        estimated_trend = np.linalg.pinv(design_matrix) @ observations
+        observations -= design_matrix @ estimated_trend
         for k, d in enumerate(self.__data):
             d.update_from_vector(observations[k, :])
 
@@ -701,7 +699,7 @@ class Oscillation:
         """
         dt = (epoch - self.__reference_epoch).total_seconds() / (86400 * self.__period)
 
-        return self.__data_cosine * np.cos(2 * np.pi *dt) + self.__data_sine * np.sin(2 * np.pi * dt)
+        return self.__data_cosine * np.cos(2 * np.pi * dt) + self.__data_sine * np.sin(2 * np.pi * dt)
 
 
 def gridded_rms(temporal_gravityfield, epochs, kernel='ewh', base_grid=grates.grid.GeographicGrid()):

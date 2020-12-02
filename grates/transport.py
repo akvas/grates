@@ -107,15 +107,14 @@ class Spectral(Transport):
             factors_cosine = scipy.integrate.trapz(np.cos(orders * lon) * dz, lon)
             factors_sine = scipy.integrate.trapz(np.sin(orders * lon) * dz, lon)
 
-            coefficient_factor[k, :, :] = legendre_array[k, :, :] * GM / R / (
-                    2 * self.__density * self.__earthrotation * np.sin(latitude))
+            coefficient_factor[k, :, :] = legendre_array[k, :, :] * GM / R / (2 * self.__density * self.__earthrotation * np.sin(latitude))
 
             continuation = np.power(R / radius[k], range(max_degree + 1))
             for n in range(1, max_degree + 1):
                 row_idx, col_idx = grates.gravityfield.degree_indices(n)
 
                 coefficient_factor[k, row_idx, col_idx] *= obp_kernel.inverse_coefficient(n) * continuation[n] * \
-                                                           np.concatenate((factors_cosine[0:n + 1], factors_sine[1:n + 1]))
+                    np.concatenate((factors_cosine[0:n + 1], factors_sine[1:n + 1]))
 
             coefficient_factor[k, :, 0] = 0
 
@@ -132,7 +131,7 @@ class Spectral(Transport):
         for k, coeffs in enumerate(data):
             epochs.append(coeffs.epoch)
 
-            transport_series[k, :] = np.sum(factors*coeffs.anm, axis=(1, 2))
+            transport_series[k, :] = np.sum(factors * coeffs.anm, axis=(1, 2))
 
         return epochs, transport_series
 

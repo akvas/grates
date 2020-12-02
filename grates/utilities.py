@@ -41,19 +41,18 @@ def legendre_functions(max_degree, colat):
 
     for n in range(2, max_degree + 1):
         function_array[:, n, n] = np.sqrt((2.0 * n + 1.0) / (2.0 * n)) * np.sin(theta) * \
-                                  function_array[:, n - 1, n - 1]
+            function_array[:, n - 1, n - 1]
 
     index = np.arange(max_degree + 1)
     function_array[:, index[2:], index[1:-1]] = np.sqrt(2 * index[2:] + 1) * np.cos(theta[:, np.newaxis]) * \
-                                                function_array[:, index[1:-1], index[1:-1]]
+        function_array[:, index[1:-1], index[1:-1]]
 
     for row in range(2, max_degree + 1):
         n = index[row:]
         m = index[0:-row]
         function_array[:, n, m] = np.sqrt((2.0 * n - 1.0) / (n - m) * (2.0 * n + 1.0) / (n + m)) * \
-                                  np.cos(theta[:, np.newaxis]) * function_array[:, n - 1, m] - \
-                                  np.sqrt((2.0 * n + 1.0) / (2.0 * n - 3.0) * (n - m - 1.0) / (n - m) *
-                                          (n + m - 1.0) / (n + m)) * function_array[:, n - 2, m]
+            np.cos(theta[:, np.newaxis]) * function_array[:, n - 1, m] - \
+            np.sqrt((2.0 * n + 1.0) / (2.0 * n - 3.0) * (n - m - 1.0) / (n - m) * (n + m - 1.0) / (n + m)) * function_array[:, n - 2, m]
 
     for m in range(1, max_degree + 1):
         function_array[:, m - 1, m:] = function_array[:, m:, m]
@@ -138,9 +137,9 @@ def legendre_polynomials(max_degree, colat):
 
     for n in range(2, max_degree + 1):
         polynomial_array[:, n] = np.sqrt((2.0 * n - 1.0) * (2.0 * n + 1.0)) / n * \
-                                 t * polynomial_array[:, n - 1] - \
-                                 np.sqrt((2.0 * n + 1.0) / (2.0 * n - 3.0)) * (n - 1.0) / n * \
-                                 polynomial_array[:, n - 2]
+            t * polynomial_array[:, n - 1] - \
+            np.sqrt((2.0 * n + 1.0) / (2.0 * n - 3.0)) * (n - 1.0) / n * \
+            polynomial_array[:, n - 2]
 
     return polynomial_array
 
