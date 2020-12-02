@@ -331,58 +331,45 @@ def unravel_coefficients(vector, min_degree=0, max_degree=None):
     return array
 
 
-def normal_gravity(r, colat, a=6378137.0, f=298.2572221010 ** -1, convergence_threshold=1e-9):
+def normal_gravity(r, colat):
     """
     Normal gravity on the ellipsoid (GRS80).
 
     Parameters
     ----------
-    r : float, array_like, shape(m, )
-        radius of evaluation point(s) in meters
+    r : float, array_like, shape (m,)
+        geocentric radius of evaluation points in radians
     colat : float, array_like, shape (m,)
         co-latitude of evaluation points in radians
-    a : float
-        semi-major axis of ellipsoid (Default: GRS80)
-    f : float
-        flattening of ellipsoid (Default: GRS80)
-    convergence_threshold : float
-        maximum absolute difference between latitude iterations in radians
 
     Returns
     -------
-    g : float, array_like, shape(m,) (depending on types of r and colat)
+    g : float, ndarray(m,)
         normal gravity at evaluation point(s) in [m/s**2]
     """
+    f = 0.00335281068118
+    a = 6378137.0
+
+    point_count = max(np.asarray(colat).size, np.asarray(r).size)
+
+    xyz = np.zeros((point_count, 3))
+    xyz[:, 0] = r * np.sin(colat)
+    xyz[:, 2] = r * np.cos(colat)
+
+    _, lat, h = grates.grid.cartesian2ellipsoidal(xyz, a, f)
+
     ga = 9.7803267715
-    gb = 9.8321863685
+    k = 0.001931851353
     m = 0.00344978600308
+    e2 = 2 * f - f**2
 
-    z = np.cos(colat) * r
-    p = np.abs(np.sin(colat) * r)
+    k1 = 2 * (1 + f + m) / a
+    k2 = 4 * f / a
+    k3 = 3 / a**2
 
-    b = a * (1 - f)
-    e2 = (a / b - 1) * (a / b + 1)
-    latitude = np.arctan2(z * (1 + e2), p)
+    g0 = ga * (1 + k * np.sin(lat)**2) / np.sqrt(1 - e2 * np.sin(lat)**2)
 
-    L = np.abs(latitude) < 60 / 180 * np.pi
-
-    latitude_old = np.full(latitude.shape, np.inf)
-    h = np.zeros(latitude.shape)
-
-    while np.max(np.abs(latitude - latitude_old)) > convergence_threshold:
-        latitude_old = latitude.copy()
-
-        N = (a / b) * a / np.sqrt(1 + e2 * np.cos(latitude) ** 2)
-        h[L] = p[L] / np.cos(latitude[L]) - N[L]
-        h[~L] = z[~L] / np.sin(latitude[~L]) - N[~L] / (1 + e2)
-
-        latitude = np.arctan2(z * (1 + e2), p * (1 + e2 * h / (N + h)))
-
-    cos2 = np.cos(latitude) ** 2
-    sin2 = np.sin(latitude) ** 2
-
-    gamma0 = (a * ga * cos2 + b * gb * sin2) / np.sqrt(a ** 2 * cos2 + b ** 2 * sin2)
-    return gamma0 - 2 * ga / a * (1 + f + m + (-3 * f + 5 * m / 2) * sin2) * h + 3 * ga / a ** 2 * h ** 2
+    return g0 * (1 - (k1 - k2 * np.sin(lat**2)) * h + k3 * h**2)
 
 
 def geocentric_radius(latitude, a=6378137.0, f=298.2572221010**-1):
