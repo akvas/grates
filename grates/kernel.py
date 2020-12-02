@@ -59,7 +59,7 @@ class Kernel(metaclass=abc.ABCMeta):
     """
     Base interface for band-limited spherical harmonic kernels.
 
-    Subclasses must implement a method `coefficients` which depends on min_degree, max_degree, radius and
+    Subclasses must implement a method `_coefficients` which depends on min_degree, max_degree, radius and
     co-latitude and returns kernel coefficients.
 
     Kernel coefficients transform the corresponding quantity (e.g. water height) into potential, the inverse
@@ -67,8 +67,49 @@ class Kernel(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def coefficients(self, min_degree, max_degree, r, colat):
+    def _coefficients(self, min_degree, max_degree, r, colat):
         pass
+
+    def coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
+        """
+        Kernel coefficients for degrees min_degree to max_degree.
+
+        Parameters
+        ----------
+        min_degree : int
+            minimum coefficient degree to return
+        max_degree : int
+            maximum coefficient degree to return
+        r : float, array_like shape (m,)
+            radius of evaluation points
+        colat : float, array_like shape (m,)
+            co-latitude of evaluation points in radians
+
+        Returns
+        -------
+        kn : ndarray(m, max_degree + 1 - min_degree)
+            kernel coefficients for degree n for all evaluation points
+
+        Raises
+        ------
+        ValueError:
+            if r and colat cannot be sensibly broadcast
+        """
+        if np.isscalar(r) and np.isscalar(colat):
+            radius, colatitude = r, colat
+        elif np.isscalar(r) and isinstance(colat, np.ndarray):
+            radius, colatitude = np.full(colat.shape, r), colat
+        elif isinstance(r, np.ndarray) and np.isscalar(colat):
+            radius, colatitude = r, np.full(r.shape, colat),
+        elif isinstance(r, np.ndarray) and isinstance(colat, np.ndarray):
+            if r.shape != colat.shape:
+                raise ValueError('shape mismatch in radius and colatitude: objects cannot be broadcast to a single shape')
+            else:
+                radius, colatitude = r, colat
+        else:
+            raise ValueError('input must be either numeric scalar or ndarrays of matching or broadcastable dimensions')
+
+        return self._coefficients(min_degree, max_degree, radius, colatitude)
 
     def inverse_coefficient(self, n, r=6378136.3, colat=0):
         """
@@ -308,28 +349,10 @@ class WaterHeight(Kernel):
         self.__rho = rho
         self.__love_numbers, _, _ = grates.utilities.load_love_numbers()
 
-    def coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
-        """
-        Kernel coefficients for degrees min_degree to max_degree.
-
-        Parameters
-        ----------
-        min_degree : int
-            minimum coefficient degree to return
-        max_degree : int
-            maximum coefficient degree to return
-        r : float, array_like shape (m,)
-            radius of evaluation points
-        colat : float, array_like shape (m,)
-            co-latitude of evaluation points in radians
-
-        Returns
-        -------
-        kn : ndarray(m, max_degree + 1 - min_degree)
-            kernel coefficients for degree n for all evaluation points
-        """
+    def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
+        """Kernel coefficients for degrees min_degree to max_degree."""
         kn = (4 * np.pi * 6.673e-11 * self.__rho) * (1 + self.__love_numbers[min_degree:max_degree + 1]) / (2 * np.arange(min_degree, max_degree + 1, dtype=float) + 1)
-        return (kn[:, np.newaxis] * np.atleast_1d(r)).T
+        return (kn[:, np.newaxis] * r).T
 
 
 class OceanBottomPressure(Kernel):
@@ -341,26 +364,8 @@ class OceanBottomPressure(Kernel):
 
         self.__love_numbers, _, _ = grates.utilities.load_love_numbers()
 
-    def coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
-        """
-        Kernel coefficients for degrees min_degree to max_degree.
-
-        Parameters
-        ----------
-        min_degree : int
-            minimum coefficient degree to return
-        min_degree : int
-            maximum coefficient degree to return
-        r : float, array_like shape (m,)
-            radius of evaluation points
-        colat : float, array_like shape (m,)
-            co-latitude of evaluation points in radians
-
-        Returns
-        -------
-        kn : ndarray(m, max_degree + 1 - min_degree)
-            kernel coefficients for degree n for all evaluation points
-        """
+    def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
+        """Kernel coefficients for degrees min_degree to max_degree."""
         kn = (4 * np.pi * 6.673e-11) * (1 + self.__love_numbers[min_degree:max_degree + 1]) / (2 * np.arange(min_degree, max_degree + 1, dtype=float) + 1)
         return (kn[:, np.newaxis] * (r / grates.utilities.normal_gravity(r, colat))).T
 
@@ -373,26 +378,8 @@ class SurfaceDensity(Kernel):
 
         self.__love_numbers, _, _ = grates.utilities.load_love_numbers()
 
-    def coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
-        """
-        Kernel coefficients for degrees min_degree to max_degree.
-
-        Parameters
-        ----------
-        min_degree : int
-            minimum coefficient degree to return
-        min_degree : int
-            maximum coefficient degree to return
-        r : float, array_like shape (m,)
-            radius of evaluation points
-        colat : float, array_like shape (m,)
-            co-latitude of evaluation points in radians
-
-        Returns
-        -------
-        kn : ndarray(m, max_degree + 1 - min_degree)
-            kernel coefficients for degree n for all evaluation points
-        """
+    def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
+        """Kernel coefficients for degrees min_degree to max_degree."""
         kn = (4 * np.pi * 6.673e-11) * (1 + self.__love_numbers[min_degree:max_degree + 1]) / (2 * np.arange(min_degree, max_degree + 1, dtype=float) + 1)
         return (kn[:, np.newaxis] * r).T
 
@@ -404,26 +391,8 @@ class Potential(Kernel):
     def __init__(self):
         pass
 
-    def coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
-        """
-        Kernel coefficients for degrees min_degree to max_degree.
-
-        Parameters
-        ----------
-        min_degree : int
-            minimum coefficient degree to return
-        min_degree : int
-            maximum coefficient degree to return
-        r : float, array_like shape (m,)
-            radius of evaluation points
-        colat : float, array_like shape (m,)
-            co-latitude of evaluation points in radians
-
-        Returns
-        -------
-        kn : ndarray(m, max_degree + 1 - min_degree)
-            kernel coefficients for degree n for all evaluation points
-        """
+    def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
+        """Kernel coefficients for degrees min_degree to max_degree."""
         count = max(np.asarray(r).size, np.asarray(colat).size)
 
         return np.ones((count, max_degree + 1 - min_degree))
@@ -434,6 +403,9 @@ class Gauss(Kernel):
     Implementation of the Gauss kernel.
     """
     def __init__(self, radius):
+
+        if radius < 0:
+            raise ValueError('Gaussian filter radius must be positive (got {0:f})'.format(radius))
 
         nmax = 1024
         self.__radius = radius
@@ -450,26 +422,8 @@ class Gauss(Kernel):
         else:
             self.__wn = np.ones(nmax + 1)
 
-    def coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
-        """
-        Kernel coefficients for degrees min_degree to max_degree.
-
-        Parameters
-        ----------
-        min_degree : int
-            minimum coefficient degree to return
-        min_degree : int
-            maximum coefficient degree to return
-        r : float, array_like shape (m,)
-            radius of evaluation points
-        colat : float, array_like shape (m,)
-            co-latitude of evaluation points in radians
-
-        Returns
-        -------
-        kn : ndarray(m, max_degree + 1 - min_degree)
-            kernel coefficients for degree n for all evaluation points
-        """
+    def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
+        """Kernel coefficients for degrees min_degree to max_degree."""
         local_nmax = self.__wn.size - 1
         if max_degree > local_nmax:
             if self.__radius > 0:
@@ -496,26 +450,8 @@ class GeoidHeight(Kernel):
     def __init__(self):
         pass
 
-    def coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
-        """
-        Kernel coefficients for degrees min_degree to max_degree.
-
-        Parameters
-        ----------
-        min_degree : int
-            minimum coefficient degree to return
-        min_degree : int
-            maximum coefficient degree to return
-        r : float, array_like shape (m,)
-            radius of evaluation points
-        colat : float, array_like shape (m,)
-            co-latitude of evaluation points in radians
-
-        Returns
-        -------
-        kn : ndarray(m, max_degree + 1 - min_degree)
-            kernel coefficients for degree n for all evaluation points
-        """
+    def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
+        """Kernel coefficients for degrees min_degree to max_degree."""
         return np.tile(grates.utilities.normal_gravity(r, colat)[:, np.newaxis], (1, max_degree + 1 - min_degree))
 
 
@@ -532,24 +468,6 @@ class UpwardContinuation(Kernel):
 
         self.__R = R
 
-    def coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
-        """
-        Kernel coefficients for degrees min_degree to max_degree.
-
-        Parameters
-        ----------
-        min_degree : int
-            minimum coefficient degree to return
-        max_degree : int
-            maximum coefficient degree to return
-        r : float, array_like shape (m,)
-            radius of evaluation points
-        colat : float, array_like shape (m,)
-            co-latitude of evaluation points in radians
-
-        Returns
-        -------
-        kn : ndarray(m, max_degree + 1 - min_degree)
-            kernel coefficients for degree n for all evaluation points
-        """
-        return np.power(np.atleast_1d(self.__R / r)[:, np.newaxis], np.arange(max_degree + 1, dtype=int) + 1)
+    def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
+        """Kernel coefficients for degrees min_degree to max_degree."""
+        return np.power(np.atleast_1d(self.__R / r)[:, np.newaxis], np.arange(min_degree, max_degree + 1, dtype=int) + 1)
