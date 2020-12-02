@@ -436,7 +436,81 @@ class RegularGrid(Grid):
         else:
             raise ValueError("grid values must be either None or " + str(np.ndarray))
 
-    def synthesis_matrix(self, min_degree, max_degree, kernel='potential', GM=3.9860044150e+14, R=6.3781363000e+06):
+    def __synthesis_matrix_per_order(self, m, basis_function, min_degree, max_degree, kernel, GM, R):
+        """
+        Generates the linear operator which transform spherical harmonic coefficients of order m and trigonometric function basis_function into gridded values.
+
+        Parameters
+        ----------
+        m : int
+            order for which the synthesis matrix should be assembled
+        basis_function : str
+            trigonometric basis function 'c', 'cos', 'cosine' or 's', 'sin', 'sine'
+        min_degree : int
+            minimum spherical harmonic degree
+        max_degree : int
+            maximum spherical harmonic degree
+        kernel : str
+            name of the kernel which represents the output functional
+        GM : float
+            geocentric gravitational constant
+        R : float
+            reference radius
+
+        Returns
+        -------
+        A : ndarray(p, n)
+            matrix that relates spherical harmonic coefficients  of order m and trigonometric function basis_function to p grid points
+        """
+        if basis_function in ('c', 'cos', 'cosine'):
+            csml = np.cos(m * self.meridians)
+        elif basis_function in ('s', 'sin', 'sine'):
+            csml = np.sin(m * self.meridians)
+        else:
+            raise ValueError('basis_function must either be "c", "cos", "cosine" or "s", "sin", "sine".')
+
+        colat = grates.utilities.colatitude(self.parallels, self.semimajor_axis, self.flattening)
+        r = grates.utilities.geocentric_radius(self.parallels, self.semimajor_axis, self.flattening)
+
+        grid_kernel = grates.kernel.get_kernel(kernel)
+        kn = grid_kernel.inverse_coefficients(0, max_degree, r, colat) * np.power((R / r)[:, np.newaxis], np.arange(max_degree + 1, dtype=int) + 1) * GM / R
+
+        Pnm = (grates.utilities.legendre_functions_per_order(max_degree, m, colat) * kn[:, m:])[:, max(min_degree - m, 0):]
+
+        return np.vstack([p * csml[:, np.newaxis] for p in Pnm])
+
+    def __analysis_matrix_per_order(self, m, basis_function, min_degree, max_degree, kernel, GM, R):
+        """
+        Generates the linear operator which converts gridded values into spherical harmonic coefficients of specific order and
+        trigonometric basis function.
+
+        Parameters
+        ----------
+        m : int
+            order for which the synthesis matrix should be assembled
+        basis_function : str
+            trigonometric basis function 'c', 'cos', 'cosine' or 's', 'sin', 'sine'
+        min_degree : int
+            minimum spherical harmonic degree
+        max_degree : int
+            maximum spherical harmonic degree
+        kernel : str
+            name of the kernel which represents the input functional
+        GM : float
+            geocentric gravitational constant
+        R : float
+            reference radius
+
+        Returns
+        -------
+        F : ndarray(n, m)
+            matrix that relates m grid points to n spherical harmonic coefficients
+        """
+        Ak = self.__synthesis_matrix_per_order(m, basis_function, min_degree, max_degree, kernel, GM, R)
+
+        return np.linalg.solve((Ak * self.area[:, np.newaxis]).T @ Ak, (Ak * self.area[:, np.newaxis]).T)
+
+    def synthesis_matrix(self, min_degree, max_degree, kernel, GM=3.9860044150e+14, R=6.3781363000e+06):
         """
         Generates the linear operator which transform spherical harmonic coefficients into gridded values.
 
@@ -458,42 +532,18 @@ class RegularGrid(Grid):
         A : ndarray(m, n)
             matrix that relates n spherical harmonic coefficients to m grid points
         """
-        point_count = self.meridians.size * self.parallels.size
-        coefficient_count = (max_degree + 1) * (max_degree + 1) - min_degree * min_degree
+        target_sequence = grates.gravityfield.CoefficientSequenceDegreeWise(min_degree, max_degree)
 
-        colat = grates.utilities.colatitude(self.parallels, self.semimajor_axis, self.flattening)
+        A = np.empty((self.point_count, target_sequence.coefficient_count))
 
-        P = grates.utilities.legendre_functions(max_degree, colat)
-        grid_kernel = grates.kernel.get_kernel(kernel)
-
-        A = np.empty((point_count, coefficient_count))
-
-        column_index = 0
-        r = grates.utilities.geocentric_radius(self.parallels, self.semimajor_axis, self.flattening)
-        for n in range(min_degree, max_degree + 1):
-            row_idx, col_idx = grates.gravityfield.degree_indices(n)
-            continuation = np.power(R / r, n + 1)
-            kn = grid_kernel.inverse_coefficient(n, r, colat)
-
-            Pnm = P[:, row_idx, col_idx].T * continuation * kn * GM / R
-
-            for k in range(self.parallels.size):
-                A[k * self.meridians.size: (k + 1) * self.meridians.size, column_index] = Pnm[0, k]
-            column_index += 1
-
-            for m in range(1, n + 1):
-                cosml = np.cos(m * self.meridians)
-                for k in range(self.parallels.size):
-                    A[k * self.meridians.size: (k + 1) * self.meridians.size, column_index] = Pnm[m, k] * cosml
-
-                sinml = np.sin(m * self.meridians)
-                for k in range(self.parallels.size):
-                    A[k * self.meridians.size: (k + 1) * self.meridians.size, column_index + 1] = Pnm[m, k] * sinml
-                column_index += 2
+        A[:, target_sequence.vector_indices(order=0)] = self.__synthesis_matrix_per_order(0, 'c', min_degree, max_degree, kernel, GM, R)
+        for m in range(1, max_degree + 1):
+            for basis_function in ('c', 's'):
+                A[:, target_sequence.vector_indices(order=m, basis_function=basis_function)] = self.__synthesis_matrix_per_order(m, basis_function, min_degree, max_degree, kernel, GM, R)
 
         return A
 
-    def analysis_matrix(self, min_degree, max_degree, kernel='potential', GM=3.9860044150e+14, R=6.3781363000e+06):
+    def analysis_matrix(self, min_degree, max_degree, kernel, GM=3.9860044150e+14, R=6.3781363000e+06):
         """
         Generates the linear operator which converts gridded values into spherical harmonic coefficients.
         This function exploits the regular point distribution and determines the coefficients order-by-order.
@@ -516,34 +566,16 @@ class RegularGrid(Grid):
         F : ndarray(n, m)
             matrix that relates m grid points to n spherical harmonic coefficients
         """
-        orders = np.empty((max_degree + 1) * (max_degree + 1) - min_degree * min_degree)
-        is_cosine = np.zeros(orders.size, dtype=bool)
-        index = 0
-        for n in range(min_degree, max_degree + 1):
-            orders[index] = 0
-            is_cosine[index] = True
-            index += 1
-            for m in range(1, n + 1):
-                orders[index] = m
-                is_cosine[index] = True
-                orders[index + 1] = m
-                index += 2
+        target_sequence = grates.gravityfield.CoefficientSequenceDegreeWise(min_degree, max_degree)
 
-        A = self.synthesis_matrix(min_degree, max_degree, kernel, GM, R)
+        A = np.empty((target_sequence.coefficient_count, self.point_count))
 
-        column_index = np.logical_and(orders == 0, is_cosine)
-        Ak = A[:, column_index]
-        A[:, column_index] = np.linalg.solve((Ak * self.area[:, np.newaxis]).T @ Ak, (Ak * self.area[:, np.newaxis]).T).T
+        A[target_sequence.vector_indices(order=0), :] = self.__analysis_matrix_per_order(0, 'c', min_degree, max_degree, kernel, GM, R)
         for m in range(1, max_degree + 1):
-            column_index = np.logical_and(orders == m, is_cosine)
-            Ak = A[:, column_index]
-            A[:, column_index] = np.linalg.solve((Ak * self.area[:, np.newaxis]).T @ Ak, (Ak * self.area[:, np.newaxis]).T).T
+            for basis_function in ('c', 's'):
+                A[target_sequence.vector_indices(order=m, basis_function=basis_function), :] = self.__analysis_matrix_per_order(m, basis_function, min_degree, max_degree, kernel, GM, R)
 
-            column_index = np.logical_and(orders == m, ~is_cosine)
-            Ak = A[:, column_index]
-            A[:, column_index] = np.linalg.solve((Ak * self.area[:, np.newaxis]).T @ Ak, (Ak * self.area[:, np.newaxis]).T).T
-
-        return A.T
+        return A
 
     def voronoi_cells(self):
         """
@@ -1390,3 +1422,57 @@ def ellipsoidal2cartesian(lon, lat, h=0, a=6378137.0, f=298.2572221010**-1):
     return np.vstack(((radius_of_curvature + h) * np.cos(lat) * np.cos(lon),
                       (radius_of_curvature + h) * np.cos(lat) * np.sin(lon),
                       ((1 - e2) * radius_of_curvature + h) * np.sin(lat))).T
+
+
+def cartesian2geodetic(xyz, a=6378137.0, f=298.2572221010**-1, max_iter=10, threshold=1e-6):
+    """
+    Compute geodetic longitude, latitude and height from 3D cartesian coordinates.
+    This function iteratively solves Bowring's irrational geodetic-latitude equation [1]_. It is accurate to
+    the micrometer level in the height component.
+
+    References
+    ----------
+
+    .. [1] B. R. Bowring (1976) TRANSFORMATION FROM SPATIAL TO GEOGRAPHICAL COORDINATES, Survey Review, 23:181, 323-327,
+           DOI: 10.1179/sre.1976.23.181.323
+
+    Parameters
+    ----------
+    xyz : ndarray(m, 3)
+        3D cartesian coordinages
+    a : float
+        semi-major axis of ellipsoid in meters
+    f : float
+        flattening of ellipsoid
+    max_iter : int
+        maximum number of iterations
+    threshold : float
+        iteration threshold for ellipsoidal height in meters (default: micrometer)
+
+    Returns
+    -------
+    lon : ndarray(m,)
+        geographic longitude in radians
+    lat : ndarray(m,)
+        geographic latitude in radians
+    h : ndarray(m,)
+        ellipsoidal height in meters
+    """
+    e2 = 2 * f - f**2
+
+    p2 = xyz[:, 0]**2 + xyz[:, 1]**2
+
+    h0 = 0
+    k = (1 - e2)**-1
+    for _ in range(max_iter):
+        c = np.power(p2 + (1 - e2) * xyz[:, -1]**2 * k**2, 1.5) / (a * e2)
+        k = 1 + (p2 + (1 - e2) * xyz[:, -1]**2 * k**3) / (c - p2)
+        h = (k**-1 - (1 - e2)) * np.sqrt(p2 + xyz[:, -1]**2 * k**2) / e2
+        if np.max(np.abs(h - h0)) < threshold:
+            break
+        h0 = h
+
+    lon = np.arctan2(xyz[:, 1], xyz[:, 0])
+    lat = np.arctan2(k * xyz[:, -1], np.sqrt(p2))
+
+    return lon, lat, h
