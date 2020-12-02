@@ -129,7 +129,7 @@ class PotentialCoefficients:
 
         """
         min_degree = 0 if min_degree is None else min_degree
-        max_degree = self.max_degree() if max_degree is None else max_degree
+        max_degree = self.max_degree if max_degree is None else max_degree
         min_order = 0 if min_order is None else min_order
         max_order = max_degree if max_order is None else max_order
 
@@ -147,7 +147,7 @@ class PotentialCoefficients:
 
     def append(self, trigonometric_function, degree, order, value):
         """Append a coefficient to a PotentialCoefficients instance."""
-        if degree > self.max_degree():
+        if degree > self.max_degree:
             tmp = np.zeros((degree+1, degree+1))
             tmp[0:self.anm.shape[0], 0:self.anm.shape[1]] = self.anm.copy()
             self.anm = tmp
@@ -159,13 +159,13 @@ class PotentialCoefficients:
 
     def truncate(self, nmax):
         """Truncate a PotentialCoefficients instance to a new maximum spherical harmonic degree."""
-        if nmax < self.max_degree():
+        if nmax < self.max_degree:
             self.anm = self.anm[0:nmax+1, 0:nmax+1]
 
     def __degree_array(self):
         """Return degrees of all coefficients as numpy array"""
         da = np.zeros(self.anm.shape, dtype=int)
-        for n in range(self.max_degree()+1):
+        for n in range(self.max_degree+1):
             da[n, 0:n+1] = n
             da[0:n, n] = n
 
@@ -174,12 +174,13 @@ class PotentialCoefficients:
     def __order_array(self):
         """Return orders of all coefficients as numpy array"""
         da = np.zeros(self.anm.shape, dtype=int)
-        for m in range(1, self.max_degree()+1):
+        for m in range(1, self.max_degree+1):
             da[m - 1, m::] = m
             da[m::, m] = m
 
         return da
 
+    @property
     def max_degree(self):
         """Return maximum spherical harmonic degree of a PotentialCoefficients instance."""
         return self.anm.shape[0]-1
@@ -190,7 +191,7 @@ class PotentialCoefficients:
             raise TypeError("unsupported operand type(s) for +: '"+str(type(self))+"' and '"+str(type(other))+"'")
 
         factor = (other.R / self.R) ** other.__degree_array() * (other.GM / self.GM)
-        if self.max_degree() >= other.max_degree():
+        if self.max_degree >= other.max_degree:
             result = self.copy()
             result.anm[0:other.anm.shape[0], 0:other.anm.shape[1]] += (other.anm*factor)
         else:
@@ -243,7 +244,7 @@ class PotentialCoefficients:
         amplitudes : array_like shape (self.max_degree()+1,)
             computed degree amplitudes
         """
-        degrees = np.arange(self.max_degree()+1)
+        degrees = np.arange(self.max_degree+1)
         amplitudes = np.zeros(degrees.size)
 
         kernel = grates.kernel.get_kernel(kernel)
@@ -270,7 +271,7 @@ class PotentialCoefficients:
         triangle : masked_array shape (max_degree+1, 2*max_degree-1)
 
         """
-        max_degree = self.max_degree() if max_degree is None else max_degree
+        max_degree = self.max_degree if max_degree is None else max_degree
 
         triangle = np.hstack((np.rot90(self.anm, -1), self.anm))
         mask = np.hstack((np.rot90(np.tril(np.ones(self.anm.shape, dtype=bool)), -1),
@@ -296,13 +297,13 @@ class PotentialCoefficients:
         """
         kernel = grates.kernel.get_kernel(kernel)
         anm_temp = np.zeros(self.anm.shape)
-        for n in range(self.max_degree() + 1):
+        for n in range(self.max_degree + 1):
             idx_row, idx_col = grates.gravityfield.degree_indices(n)
             anm_temp[idx_row, idx_col] = self.anm[idx_row, idx_col]*self.GM/self.R*kernel.inverse_coefficient(n)
 
         amp = np.zeros(self.anm.shape)
         amp[:, 0] = np.abs(anm_temp[:, 0])
-        for m in range(1, self.max_degree() + 1):
+        for m in range(1, self.max_degree + 1):
             amp[m:, m] = np.sqrt(anm_temp[m:, m]**2 + anm_temp[m-1, m:]**2)
 
         mask = np.triu(np.ones(amp.shape, dtype=bool), 1)
@@ -320,7 +321,7 @@ class PotentialCoefficients:
 
         """
         phase = np.zeros(self.anm.shape)
-        for m in range(1, self.max_degree() + 1):
+        for m in range(1, self.max_degree + 1):
             phase[m:, m] = np.arctan2(self.anm[m-1, m:], self.anm[m:, m])
 
         mask = np.triu(np.ones(self.anm.shape, dtype=bool), 1)
@@ -347,14 +348,14 @@ class PotentialCoefficients:
 
         if isinstance(grid, grates.grid.RegularGrid):
             gridded_values = np.zeros((grid.parallels.size, grid.meridians.size))
-            orders = np.arange(self.max_degree() + 1)[:, np.newaxis]
+            orders = np.arange(self.max_degree + 1)[:, np.newaxis]
 
             colat = grates.utilities.colatitude(grid.parallels, grid.semimajor_axis, grid.flattening)
             r = grates.utilities.geocentric_radius(grid.parallels, grid.semimajor_axis, grid.flattening)
-            P = grates.utilities.legendre_functions(self.max_degree(), colat)
+            P = grates.utilities.legendre_functions(self.max_degree, colat)
             P *= self.anm
 
-            for n in range(self.max_degree() + 1):
+            for n in range(self.max_degree + 1):
                 row_idx, col_idx = grates.gravityfield.degree_indices(n)
                 continuation = np.power(self.R / r, n + 1)
                 kn = kernel.inverse_coefficient(n, r, colat)
