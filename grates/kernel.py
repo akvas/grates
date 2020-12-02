@@ -214,7 +214,7 @@ class Kernel(metaclass=abc.ABCMeta):
         kernel : ndarray(m,)
             kernel evaluated at the given spherical distance
         """
-        kn = self.coefficients(min_degree, max_degree, r, colat) * np.sqrt(2 * np.arange(nmax + 1) + 1)
+        kn = self.coefficients(min_degree, max_degree, r, colat) * np.sqrt(2 * np.arange(min_degree, max_degree + 1) + 1)
 
         return grates.utilities.legendre_summation(kn, psi)
 
