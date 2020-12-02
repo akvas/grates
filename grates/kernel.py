@@ -19,8 +19,9 @@ def get_kernel(kernel_name):
     Parameters
     ----------
     kernel_name : string
-        name of kernel, currently implemented: water height ('ewh', 'water_height'),
-        ocean bottom pressure ('obp', 'ocean_bottom_pressure')
+        name of kernel, currently implemented: water height ('EWH', 'water_height'),
+        ocean bottom pressure ('OBP', 'ocean_bottom_pressure'), potential ('potential'),
+        geoid height ('geoid_height'), surface density ('surface_density')
 
     Returns
     -------
@@ -44,6 +45,9 @@ def get_kernel(kernel_name):
 
     elif kernel_name.lower() in ['geoid', 'geoid_height']:
         ker = grates.kernel.GeoidHeight()
+
+    elif kernel_name.lower() in ['surface_density']:
+        ker = grates.kernel.SurfaceDensity()
 
     else:
         raise ValueError("Unrecognized kernel '{0:s}'.".format(kernel_name))
