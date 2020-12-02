@@ -141,7 +141,7 @@ class OrderWiseFilter(SpatialFilter):
 
         nmax = gravityfield.max_degree
         if nmax > self.__nmax:
-            raise ValueError('DDK filter only implemented for a maximum degree of {1:d} (nmax={0:d} supplied).'
+            raise ValueError('DDK filter only implemented for a maximum degree of {1:d} (max_degree={0:d} supplied).'
                              .format(nmax, self.__nmax))
 
         result = gravityfield.copy()

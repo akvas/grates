@@ -87,18 +87,18 @@ class Spectral(Transport):
         self.__density = seawater_density
         self.__earthrotation = earthrotation
 
-    def coefficient_factors(self, latitudes, depth_bounds, nmax, GM=3.9860044150e+14, R=6.3781363000e+06):
+    def coefficient_factors(self, latitudes, depth_bounds, max_degree, GM=3.9860044150e+14, R=6.3781363000e+06):
 
         latitudes = np.atleast_1d(latitudes)
-        orders = np.arange(nmax + 1, dtype=float)[:, np.newaxis]
+        orders = np.arange(max_degree + 1, dtype=float)[:, np.newaxis]
         obp_kernel = grates.kernel.OceanBottomPressure()
 
         colatitude = grates.utilities.colatitude(latitudes)
         radius = grates.utilities.geocentric_radius(latitudes)
 
-        legendre_array = grates.utilities.legendre_functions(nmax, colatitude)
+        legendre_array = grates.utilities.legendre_functions(max_degree, colatitude)
 
-        coefficient_factor = np.empty((latitudes.size, nmax + 1, nmax + 1))
+        coefficient_factor = np.empty((latitudes.size, max_degree + 1, max_degree + 1))
         for k, latitude in enumerate(latitudes):
             lon, z, dz = self.__topography.cross_section(latitude)
             depth_mask = np.logical_or(z < depth_bounds[0], z > depth_bounds[1])
@@ -110,8 +110,8 @@ class Spectral(Transport):
             coefficient_factor[k, :, :] = legendre_array[k, :, :] * GM / R / (
                     2 * self.__density * self.__earthrotation * np.sin(latitude))
 
-            continuation = np.power(R / radius[k], range(nmax + 1))
-            for n in range(1, nmax + 1):
+            continuation = np.power(R / radius[k], range(max_degree + 1))
+            for n in range(1, max_degree + 1):
                 row_idx, col_idx = grates.gravityfield.degree_indices(n)
 
                 coefficient_factor[k, row_idx, col_idx] *= obp_kernel.inverse_coefficient(n) * continuation[n] * \
