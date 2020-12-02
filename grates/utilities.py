@@ -531,7 +531,7 @@ class Polynomial(TemporalBasisFunction):
         return dmatrix
 
 
-def load_love_numbers(max_degree=None, frame='CE'):
+def import_load_love_numbers(max_degree=None, frame='CE'):
     """
     Load Love numbers computed by Wang et al. (2012) [1]_ for the elastic Earth model ak135 [2]_.
     from degree 0 to 46340.
@@ -584,6 +584,41 @@ def load_love_numbers(max_degree=None, frame='CE'):
         raise ValueError('frame of load love numbers must be one of CM, CE, or CF (got <' + frame + '>)')
 
     return hlk[:, 2], hlk[:, 0], hlk[:, 1]
+
+
+love_numbers_ce = import_load_love_numbers(frame='CE')
+love_numbers_cm = import_load_love_numbers(frame='CM')
+love_numbers_cf = import_load_love_numbers(frame='CF')
+
+
+def load_love_numbers(max_degree=None, frame='CE'):
+    """
+    Wrapper for load love numbers. Return love numbers in different frames loaded on module import.
+
+    Parameters
+    ----------
+    max_degree : int
+        maximum degree of the load love numbers to be returned (default: return all love numbers).
+    frame : str
+        frame of the load love numbers (CM, CE, CF).
+
+    Returns
+    -------
+    k : array_like
+        gravity change load love numbers
+    h : array_like
+        radial displacement load love numbers
+    l : array_like
+        horizontal displacement load love numbers
+    """
+    if frame.lower() == 'cm':
+        return love_numbers_cm[0:None]
+    elif frame.lower() == 'cf':
+        return love_numbers_cf[0:None]
+    elif frame.lower() == 'ce':
+        return love_numbers_ce[0:None]
+    else:
+        raise ValueError('frame of load love numbers must be one of CM, CE, or CF (got <' + frame + '>)')
 
 
 def kaula_curve(min_degree, max_degree, kaula_factor=1e-10, kaula_power=4.0):
