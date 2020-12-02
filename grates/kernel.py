@@ -70,7 +70,7 @@ class Kernel(metaclass=abc.ABCMeta):
     def coefficients(self, min_degree, max_degree, r, colat):
         pass
 
-    def inverse_coefficient(self, n, r=6378136.6, colat=0):
+    def inverse_coefficient(self, n, r=6378136.3, colat=0):
         """
         Return inverse kernel coefficient.
 
@@ -85,7 +85,7 @@ class Kernel(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        inverse_coeff : float, ndarray(m,)
+        inverse_coeff : ndarray(m,)
             inverse kernel coefficient for degree n
         """
         return self.coefficient(n, r, colat)**-1
@@ -519,4 +519,37 @@ class GeoidHeight(Kernel):
         return np.tile(grates.utilities.normal_gravity(r, colat)[:, np.newaxis], (1, max_degree + 1 - min_degree))
 
 
-        return grates.utilities.normal_gravity(r, colat)
+class UpwardContinuation(Kernel):
+    """
+    Implementation of the upward continuation kernel.
+
+    Parameters
+    ----------
+    R : float
+        reference radius
+    """
+    def __init__(self, R=6.3781363000e+06):
+
+        self.__R = R
+
+    def coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
+        """
+        Kernel coefficients for degrees min_degree to max_degree.
+
+        Parameters
+        ----------
+        min_degree : int
+            minimum coefficient degree to return
+        max_degree : int
+            maximum coefficient degree to return
+        r : float, array_like shape (m,)
+            radius of evaluation points
+        colat : float, array_like shape (m,)
+            co-latitude of evaluation points in radians
+
+        Returns
+        -------
+        kn : ndarray(m, max_degree + 1 - min_degree)
+            kernel coefficients for degree n for all evaluation points
+        """
+        return np.power(np.atleast_1d(self.__R / r)[:, np.newaxis], np.arange(max_degree + 1, dtype=int) + 1)
