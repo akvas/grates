@@ -124,7 +124,7 @@ class Spectral(Transport):
     def compute(self, latitudes, depth_bounds, data):
 
         latitudes = np.atleast_1d(latitudes)
-        factors = self.coefficient_factors(latitudes, depth_bounds, data[0].max_degree(), data[0].GM, data[0].R)
+        factors = self.coefficient_factors(latitudes, depth_bounds, data[0].max_degree, data[0].GM, data[0].R)
 
         transport_series = np.zeros((len(data), latitudes.size))
         epochs = []

@@ -60,7 +60,7 @@ class Gaussian(SpatialFilter):
         if not isinstance(gravityfield, PotentialCoefficients):
             raise TypeError("Filter operation only implemented for instances of 'PotentialCoefficients'")
 
-        nmax = gravityfield.max_degree()
+        nmax = gravityfield.max_degree
 
         kn = grates.kernel.Gauss(self.radius)
         wn = np.zeros(nmax + 1)
@@ -139,7 +139,7 @@ class OrderWiseFilter(SpatialFilter):
         if not isinstance(gravityfield, PotentialCoefficients):
             raise TypeError("Filter operation only implemented for instances of 'PotentialCoefficients'")
 
-        nmax = gravityfield.max_degree()
+        nmax = gravityfield.max_degree
         if nmax > self.__nmax:
             raise ValueError('DDK filter only implemented for a maximum degree of {1:d} (nmax={0:d} supplied).'
                              .format(nmax, self.__nmax))
@@ -389,7 +389,7 @@ class GeneralMatrix(SpatialFilter):
             filterd copy of input
         """
         result = gravityfield.copy()
-        max_degree = min(result.max_degree(), self.__nmax)
+        max_degree = min(result.max_degree, self.__nmax)
 
         x = grates.utilities.ravel_coefficients(gravityfield.anm, self.__nmin, self.__nmax)
         x_filtered = self.__W @ x
@@ -482,7 +482,7 @@ class VDK(GeneralMatrix):
 
         """
         result = gravityfield.copy()
-        max_degree = min(result.max_degree(), self.__nmax)
+        max_degree = min(result.max_degree, self.__nmax)
 
         x = grates.utilities.ravel_coefficients(gravityfield.anm, self.__nmin, self.__nmax)[:, np.newaxis]
         x_filtered = (self.__W @ x).flatten()
