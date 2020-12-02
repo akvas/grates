@@ -1422,3 +1422,57 @@ def ellipsoidal2cartesian(lon, lat, h=0, a=6378137.0, f=298.2572221010**-1):
     return np.vstack(((radius_of_curvature + h) * np.cos(lat) * np.cos(lon),
                       (radius_of_curvature + h) * np.cos(lat) * np.sin(lon),
                       ((1 - e2) * radius_of_curvature + h) * np.sin(lat))).T
+
+
+def cartesian2geodetic(xyz, a=6378137.0, f=298.2572221010**-1, max_iter=10, threshold=1e-6):
+    """
+    Compute geodetic longitude, latitude and height from 3D cartesian coordinates.
+    This function iteratively solves Bowring's irrational geodetic-latitude equation [1]_. It is accurate to
+    the micrometer level in the height component.
+
+    References
+    ----------
+
+    .. [1] B. R. Bowring (1976) TRANSFORMATION FROM SPATIAL TO GEOGRAPHICAL COORDINATES, Survey Review, 23:181, 323-327,
+           DOI: 10.1179/sre.1976.23.181.323
+
+    Parameters
+    ----------
+    xyz : ndarray(m, 3)
+        3D cartesian coordinages
+    a : float
+        semi-major axis of ellipsoid in meters
+    f : float
+        flattening of ellipsoid
+    max_iter : int
+        maximum number of iterations
+    threshold : float
+        iteration threshold for ellipsoidal height in meters (default: micrometer)
+
+    Returns
+    -------
+    lon : ndarray(m,)
+        geographic longitude in radians
+    lat : ndarray(m,)
+        geographic latitude in radians
+    h : ndarray(m,)
+        ellipsoidal height in meters
+    """
+    e2 = 2 * f - f**2
+
+    p2 = xyz[:, 0]**2 + xyz[:, 1]**2
+
+    h0 = 0
+    k = (1 - e2)**-1
+    for _ in range(max_iter):
+        c = np.power(p2 + (1 - e2) * xyz[:, -1]**2 * k**2, 1.5) / (a * e2)
+        k = 1 + (p2 + (1 - e2) * xyz[:, -1]**2 * k**3) / (c - p2)
+        h = (k**-1 - (1 - e2)) * np.sqrt(p2 + xyz[:, -1]**2 * k**2) / e2
+        if np.max(np.abs(h - h0)) < threshold:
+            break
+        h0 = h
+
+    lon = np.arctan2(xyz[:, 1], xyz[:, 0])
+    lat = np.arctan2(k * xyz[:, -1], np.sqrt(p2))
+
+    return lon, lat, h
