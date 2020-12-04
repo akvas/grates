@@ -175,7 +175,7 @@ def legendre_summation(coefficients, colat):
             Other Aids to Computation. 9 (51): 118. doi:10.1090/S0025-5718-1955-0071856-0.
 
     """
-    t = np.cos(colat)
+    t = np.cos(np.atleast_1d(colat))
 
     b2 = 0
     b1 = 0
