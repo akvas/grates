@@ -392,7 +392,7 @@ class PotentialCoefficients:
         """
         self.anm = grates.utilities.unravel_coefficients(x)
 
-    def gravity(self, xyz):
+    def gravitational_acceleration(self, xyz):
         """
         Compute the gravitational acceleration of the gravity field at cartesion coordinate triples.
 
@@ -1019,3 +1019,103 @@ class CoefficientSequenceFlatArray(CoefficientSequence):
         basis_functions[np.triu_indices(basis_functions.shape[0], 1)] = 's'
 
         super(CoefficientSequenceFlatArray, self).__init__(degrees.flatten(), orders.flatten(), basis_functions.flatten())
+
+
+class ReferenceField(PotentialCoefficients):
+    """
+    Class representation of a geodetic reference system that defines a reference ellipsoid and reference gravity field.
+
+    Parameters
+    ----------
+    GM : float
+        geocentric gravitational constant [m^3 / s^2]
+    omega : float
+        angular rotation speed of the earth [rad / s]
+    a : float
+        equatorial radius (semi-major axis) [m]
+    f : float
+        flattening of the ellipsoid (either f or J2 must be given)
+    J2 : float
+        dynamical form factor (either f or J2 must be given)
+
+    Examples
+    --------
+    >>> WGS84 = ReferenceField(GM=3986004.418e8, omega=7292115.0e-11, a=6378137.0, f=1/298.257223563)
+
+    >>> GRS80 = ReferenceField(GM=3986005e8, omega=7292115.0e-11, a=6378137.0, J2=108263e-8)
+
+    """
+    def __init__(self, GM, omega, a, f=None, J2=None):
+
+        self.omega = omega
+
+        if J2 is None:
+            self.flattening = f
+            e2 = f * (2 - f)
+            e = np.sqrt(e2)
+            e_prime = e / np.sqrt(1 - e**2)
+
+            n = np.arange(1, 21, dtype=float)
+            q0 = -2 * np.sum(np.power(-1, n) * n * np.power(e_prime, 2 * n + 1) / ((2 * n + 1) * (2 * n + 3)))
+            self.J2 = (e2 - 4 / 15 * (omega**2 * a**3) / GM * e**3 / (2 * q0)) / 3
+
+        elif f is None:
+            self.J2 = J2
+            e = 0.1
+            e0 = np.inf
+
+            n = np.arange(1, 21, dtype=float)
+            while not np.isclose(e, e0, atol=1e-22, rtol=0):
+                e0 = e
+                e_prime = e / np.sqrt(1 - e**2)
+                q0 = -2 * np.sum(np.power(-1, n) * n * np.power(e_prime, 2 * n + 1) / ((2 * n + 1) * (2 * n + 3)))
+                e = np.sqrt(3 * J2 + 4 / 15 * (omega**2 * a**3) / GM * e**3 / (2 * q0))
+
+            e2 = e**2
+            self.flattening = 1 - np.sqrt(1 - e2)
+        else:
+            raise ValueError('either flattening f or dynamic force factor J2 must be given for a full definition of the reference field')
+
+        coefficients = [1.0]
+        n = 1
+        while not np.isclose(coefficients[-1], 0, atol=1e-22, rtol=0):
+            factor = 1 if n % 2 == 0 else -1
+            c2n = factor * (3 * e2**n * (1 - n + 5 * n * self.J2 / e2) / ((2 * n + 1) * (2 * n + 3) * np.sqrt(4 * n + 1)))
+            coefficients.append(c2n)
+            n += 1
+
+        max_degree = (len(coefficients) - 1) * 2
+        anm = np.zeros((max_degree + 1, max_degree + 1))
+        anm[0::2, 0] = coefficients
+
+        super(ReferenceField, self).__init__(GM, a)
+        self.anm = anm
+
+    def normal_gravity(self, r, colat):
+        """
+        Normal gravity (graviational and centrifugal acceleration) of the reference field.
+
+        Parameters
+        ----------
+        r : float, array_like, shape (m,)
+            geocentric radius of evaluation points in radians
+        colat : float, array_like, shape (m,)
+            co-latitude of evaluation points in radians
+
+        Returns
+        -------
+        g : float, ndarray(m,)
+            normal gravity at evaluation point(s) in [m/s**2]
+        """
+        point_count = max(np.asarray(r).size, np.asarray(colat).size)
+        xyz = np.zeros((point_count, 3))
+        xyz[:, 0] = r * np.sin(colat)
+        xyz[:, 2] = r * np.cos(colat)
+
+        g = self.gravitational_acceleration(xyz)
+        g[:, 0] += self.omega**2 * xyz[:, 0]
+        return np.sqrt(np.sum(g**2, axis=1))
+
+
+WGS84 = ReferenceField(GM=3986004.418e8, omega=7292115.0e-11, a=6378137.0, f=1 / 298.257223563)
+GRS80 = ReferenceField(GM=3986005e8, omega=7292115.0e-11, a=6378137.0, J2=108263e-8)

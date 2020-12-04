@@ -367,7 +367,7 @@ class OceanBottomPressure(Kernel):
     def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
         """Kernel coefficients for degrees min_degree to max_degree."""
         kn = (4 * np.pi * 6.673e-11) * (1 + self.__love_numbers[min_degree:max_degree + 1]) / (2 * np.arange(min_degree, max_degree + 1, dtype=float) + 1)
-        return (kn[:, np.newaxis] * (r / grates.utilities.normal_gravity(r, colat))).T
+        return (kn[:, np.newaxis] * (r / grates.gravityfield.GRS80.normal_gravity(r, colat))).T
 
 
 class SurfaceDensity(Kernel):
@@ -452,7 +452,7 @@ class GeoidHeight(Kernel):
 
     def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
         """Kernel coefficients for degrees min_degree to max_degree."""
-        return np.tile(grates.utilities.normal_gravity(r, colat)[:, np.newaxis], (1, max_degree + 1 - min_degree))
+        return np.tile(grates.gravityfield.GRS80.normal_gravity(r, colat)[:, np.newaxis], (1, max_degree + 1 - min_degree))
 
 
 class UpwardContinuation(Kernel):

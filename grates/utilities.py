@@ -355,47 +355,6 @@ def unravel_coefficients(vector, min_degree=0, max_degree=None):
     return array
 
 
-def normal_gravity(r, colat):
-    """
-    Normal gravity on the ellipsoid (GRS80).
-
-    Parameters
-    ----------
-    r : float, array_like, shape (m,)
-        geocentric radius of evaluation points in radians
-    colat : float, array_like, shape (m,)
-        co-latitude of evaluation points in radians
-
-    Returns
-    -------
-    g : float, ndarray(m,)
-        normal gravity at evaluation point(s) in [m/s**2]
-    """
-    f = 0.00335281068118
-    a = 6378137.0
-
-    point_count = max(np.asarray(colat).size, np.asarray(r).size)
-
-    xyz = np.zeros((point_count, 3))
-    xyz[:, 0] = r * np.sin(colat)
-    xyz[:, 2] = r * np.cos(colat)
-
-    _, lat, h = grates.grid.cartesian2geodetic(xyz, a, f)
-
-    ga = 9.7803267715
-    k = 0.001931851353
-    m = 0.00344978600308
-    e2 = 2 * f - f**2
-
-    k1 = 2 * (1 + f + m) / a
-    k2 = 4 * f / a
-    k3 = 3 / a**2
-
-    g0 = ga * (1 + k * np.sin(lat)**2) / np.sqrt(1 - e2 * np.sin(lat)**2)
-
-    return g0 * (1 - (k1 - k2 * np.sin(lat**2)) * h + k3 * h**2)
-
-
 def geocentric_radius(latitude, a=6378137.0, f=298.2572221010**-1):
     """
     Geocentric radius of a point on the ellipsoid.
