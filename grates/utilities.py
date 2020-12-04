@@ -299,7 +299,7 @@ def ravel_coefficients(array, min_degree=0, max_degree=None):
                 idx += 2
 
     else:
-        raise ValueError('Only 2d or 3d spherical harmonic arrays can be unraveled.')
+        raise ValueError('Only 2d or 3d spherical harmonic arrays can be raveled.')
 
     return x
 
