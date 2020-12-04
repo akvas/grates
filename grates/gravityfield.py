@@ -392,6 +392,66 @@ class PotentialCoefficients:
         """
         self.anm = grates.utilities.unravel_coefficients(x)
 
+    def gravity(self, xyz):
+        """
+        Compute the gravitational acceleration of the gravity field at cartesion coordinate triples.
+
+        Parameters
+        ----------
+        xyz : ndarray(m, 3)
+            evaluation positions as cartesion coordinates
+
+        Returns
+        -------
+        g : ndarray(m, 3)
+            gravitational acceleration in m / s^2
+        """
+        r, colat, lon = grates.grid.cartesian2spherical(xyz)
+        n = np.arange(self.max_degree + 1, dtype=float)
+
+        g = np.empty((xyz.shape[0], 3))
+
+        Pnm_co = grates.utilities.legendre_functions_per_order(self.max_degree + 1, 0, colat)
+        Pnm_p1 = grates.utilities.legendre_functions_per_order(self.max_degree + 1, 1, colat)
+
+        fnm_zero = np.sqrt((n + 1) * (n + 1)) * np.sqrt((2 * n + 1) / (2 * n + 3))
+        fnm_plus = np.sqrt((n + 1) * (n + 2)) * np.sqrt((2 * n + 1) / (2 * n + 3)) * np.sqrt(2)
+
+        Cnm_zero = Pnm_co[:, 1:] * fnm_zero
+        Cnm_plus = (Pnm_p1 * np.cos(lon)[:, np.newaxis]) * fnm_plus
+        Snm_plus = (Pnm_p1 * np.sin(lon)[:, np.newaxis]) * fnm_plus
+
+        g[:, 0] = -(Cnm_plus * np.power(self.R / r[:, np.newaxis], n + 2)) @ self.anm[:, 0]
+        g[:, 1] = -(Snm_plus * np.power(self.R / r[:, np.newaxis], n + 2)) @ self.anm[:, 0]
+        g[:, 2] = -2 * (Cnm_zero * np.power(self.R / r[:, np.newaxis], n + 2)) @ self.anm[:, 0]
+        for m in range(1, self.max_degree + 1):
+            Pnm_m1 = Pnm_co
+            Pnm_co = Pnm_p1
+            Pnm_p1 = grates.utilities.legendre_functions_per_order(self.max_degree + 1, m + 1, colat)
+
+            continuation = np.power(self.R / r[:, np.newaxis], n[m:] + 2)
+
+            fnm_minus = np.sqrt((n[m:] - m + 1) * (n[m:] - m + 2)) * np.sqrt((2 * n[m:] + 1) / (2 * n[m:] + 3))
+            if m == 1:
+                fnm_minus *= np.sqrt(2)
+            fnm_zero = np.sqrt((n[m:] - m + 1) * (n[m:] + m + 1)) * np.sqrt((2 * n[m:] + 1) / (2 * n[m:] + 3))
+            fnm_plus = np.sqrt((n[m:] + m + 1) * (n[m:] + m + 2)) * np.sqrt((2 * n[m:] + 1) / (2 * n[m:] + 3))
+
+            Cnm_minus = continuation * (Pnm_m1[:, 2:] * np.cos((m - 1) * lon)[:, np.newaxis]) * fnm_minus
+            Snm_minus = continuation * (Pnm_m1[:, 2:] * np.sin((m - 1) * lon)[:, np.newaxis]) * fnm_minus
+
+            Cnm_zero = continuation * (Pnm_co[:, 1:] * np.cos(m * lon)[:, np.newaxis]) * fnm_zero
+            Snm_zero = continuation * (Pnm_co[:, 1:] * np.sin(m * lon)[:, np.newaxis]) * fnm_zero
+
+            Cnm_plus = continuation * (Pnm_p1 * np.cos((m + 1) * lon)[:, np.newaxis]) * fnm_plus
+            Snm_plus = continuation * (Pnm_p1 * np.sin((m + 1) * lon)[:, np.newaxis]) * fnm_plus
+
+            g[:, 0] += (Cnm_minus - Cnm_plus) @ self.anm[m:, m] + (Snm_minus - Snm_plus) @ self.anm[m - 1, m:]
+            g[:, 1] += (-Snm_minus - Snm_plus) @ self.anm[m:, m] + (Cnm_minus + Cnm_plus) @ self.anm[m - 1, m:]
+            g[:, 2] += -2 * Cnm_zero @ self.anm[m:, m] - 2 * Snm_zero @ self.anm[m - 1, m:]
+
+        return g * self.GM / (2 * self.R**2)
+
 
 class TimeVariableGravityField:
     """
