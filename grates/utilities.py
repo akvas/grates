@@ -324,18 +324,33 @@ def unravel_coefficients(vector, min_degree=0, max_degree=None):
 
     """
     if max_degree is None:
-        max_degree = int(np.sqrt(vector.size + min_degree * min_degree) - 1)
+        max_degree = int(np.sqrt(vector.shape[-1] + min_degree * min_degree) - 1)
 
-    array = np.zeros((max_degree + 1, max_degree + 1), dtype=vector.dtype)
+    if vector.ndim == 1:
+        array = np.zeros((max_degree + 1, max_degree + 1), dtype=vector.dtype)
 
-    idx = 0
-    for n in range(min_degree, max_degree + 1):
-        array[n, 0] = vector[idx]
-        idx += 1
-        for m in range(1, n + 1):
-            array[n, m] = vector[idx]
-            array[m - 1, n] = vector[idx + 1]
-            idx += 2
+        idx = 0
+        for n in range(min_degree, max_degree + 1):
+            array[n, 0] = vector[idx]
+            idx += 1
+            for m in range(1, n + 1):
+                array[n, m] = vector[idx]
+                array[m - 1, n] = vector[idx + 1]
+                idx += 2
+
+    elif vector.ndim == 2:
+        array = np.zeros((vector.shape[0], max_degree + 1, max_degree + 1), dtype=vector.dtype)
+
+        idx = 0
+        for n in range(min_degree, max_degree + 1):
+            array[:, n, 0] = vector[:, idx]
+            idx += 1
+            for m in range(1, n + 1):
+                array[:, n, m] = vector[:, idx]
+                array[:, m - 1, n] = vector[:, idx + 1]
+                idx += 2
+    else:
+        raise ValueError('Only 1d or 2d spherical harmonic vectors can be unraveled.')
 
     return array
 
