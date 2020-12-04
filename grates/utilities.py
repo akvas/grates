@@ -77,9 +77,17 @@ def legendre_functions_per_order(max_degree, order, colat):
     -------
     Pnm : array_like(m, max_degree + 1 - order)
         fully normalized associated Legendre functions for the given order
+
+    Raises
+    ------
+    ValueError:
+        if order excees maximum degree
     """
     if order == 0:
         return legendre_polynomials(max_degree, colat)
+
+    if order > max_degree:
+        raise ValueError('order exceeds maximum degree ({0:d} vs. {1:d})'.format(order, max_degree))
 
     t = np.cos(np.atleast_1d(colat))
     s = np.sqrt(1 - t**2)
