@@ -239,12 +239,14 @@ def spherical_harmonics(max_degree, colat, lon):
        Ynm[:, m-1, n] (for m > 0) returns Snm(colat, lon).
 
     """
+    point_count = max(np.asarray(colat).size, np.asarray(lon).size)
     longitude = np.atleast_1d(lon)
 
-    sh_array = legendre_functions(max_degree, colat)
+    sh_array = np.ones((point_count, max_degree + 1, max_degree + 1))
     for m in range(1, max_degree + 1):
-        sh_array[:, m:, m] *= np.cos(m * longitude)[:, np.newaxis]
-        sh_array[:, m - 1, m:] *= np.sin(m * longitude)[:, np.newaxis]
+        sh_array[:, m:, m] = np.cos(m * longitude)[:, np.newaxis]
+        sh_array[:, m - 1, m:] = np.sin(m * longitude)[:, np.newaxis]
+    sh_array *= legendre_functions(max_degree, colat)
 
     return sh_array
 
