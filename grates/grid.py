@@ -1476,3 +1476,28 @@ def cartesian2geodetic(xyz, a=6378137.0, f=298.2572221010**-1, max_iter=10, thre
     lat = np.arctan2(k * xyz[:, -1], np.sqrt(p2))
 
     return lon, lat, h
+
+
+def cartesian2spherical(xyz):
+    """
+    Convert a cartesion coordinate tripe to spherical coordniates (r, colatitude, longitude).
+
+    Parameters
+    ----------
+    xyz : ndarray(m, 3)
+        cartesian coordinate triple for m points
+
+    Returns
+    -------
+    r : ndarray(m,)
+        geocentric radius
+    colatitude : ndarray(m,)
+        colatitude (polar angle) in radians
+    longitude : ndarray(m,)
+        longitude in radians
+    """
+    r = np.sqrt(np.sum(xyz**2, axis=1))
+    colatitude = np.arctan2(np.sqrt(np.sum(xyz[:, 0:2]**2, axis=1)), xyz[:, 2])
+    lon = np.arctan2(xyz[:, 1], xyz[:, 0])
+
+    return r, colatitude, lon
