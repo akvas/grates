@@ -1,3 +1,6 @@
+# Copyright (c) 2020 Andreas Kvas
+# See LICENSE for copyright/license details.
+
 import grates
 import pytest
 import numpy as np
@@ -9,7 +12,7 @@ def test_gauss_radius():
         grates.kernel.Gauss(-1)
 
     kn = grates.kernel.Gauss(0)
-    assert np.all(kn.coefficients(2, 5) == np.ones(5 + 1 - 2))
+    np.testing.assert_equal(1, kn.coefficients(2, 5))
 
 
 def test_gauss_recursion():
@@ -18,7 +21,7 @@ def test_gauss_recursion():
 
     c1 = kn.coefficients(2, 200)
     c2 = kn.coefficients(2, 2000)
-    assert np.allclose(c1, c2[:, 0:c1.size])
+    np.testing.assert_array_almost_equal(c1, c2[:, 0:c1.size], decimal=14)
 
 
 def test_kernel_coefficients_shape():

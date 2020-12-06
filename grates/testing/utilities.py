@@ -1,84 +1,134 @@
+# Copyright (c) 2020 Andreas Kvas
+# See LICENSE for copyright/license details.
+
 import numpy as np
 import grates
 import pytest
+from grates.testing import TestCase
+import pickle
+import os
 
 
-def test_legendre_functions():
+class TestLegendreFunctions(TestCase):
 
-    max_degree = 5
+    __file_name = 'test_legendre_functions_data.dat'
 
-    res = grates.utilities.legendre_functions(max_degree, 1)
-    assert res.shape == (1, max_degree + 1, max_degree + 1)
+    def generate_data(self):
 
-    res = grates.utilities.legendre_functions(max_degree, np.random.randn(5))
-    assert res.shape == (5, max_degree + 1, max_degree + 1)
+        max_degree = 5
+        psi = np.linspace(0, np.pi, 10) + np.random.randn(10)
+        lon = np.linspace(-np.pi, np.pi, 10) + np.random.randn(10)
+        coefficients = np.random.randn(27)
+        test_order = 5
 
-    res = grates.utilities.legendre_functions(max_degree, [1, 2, 3])
-    assert res.shape == (3, max_degree + 1, max_degree + 1)
+        Pnm = grates.utilities.legendre_functions(max_degree, psi)
+        Pn = grates.utilities.legendre_polynomials(max_degree, psi)
+        Pnm_orderwise = grates.utilities.legendre_functions_per_order(max_degree, test_order, psi)
+        Ynm = grates.utilities.spherical_harmonics(max_degree, psi, lon)
+        lsum = grates.utilities.legendre_summation(coefficients, psi)
 
+        test_data = {'input': {'colat': psi, 'max_degree': max_degree, 'coefficients': coefficients, 'test_order': test_order, 'lon': lon},
+                     'output': {'Pnm': Pnm, 'Pn': Pn, 'Pnm_orderwise': Pnm_orderwise, 'lsum': lsum, 'Ynm': Ynm}}
 
-def test_legendre_functions_per_order():
+        with open(self.__file_name, 'wb+') as f:
+            pickle.dump(test_data, f)
 
-    max_degree = 5
-    order = 3
+    def delete_data(self):
 
-    res = grates.utilities.legendre_functions_per_order(max_degree, order, 1)
-    assert res.shape == (1, max_degree + 1 - order)
+        os.remove(self.__file_name)
 
-    res = grates.utilities.legendre_functions_per_order(max_degree, order, np.random.randn(5))
-    assert res.shape == (5, max_degree + 1 - order)
+    def test_legendre_functions_data(self):
 
-    res = grates.utilities.legendre_functions_per_order(max_degree, 0, np.random.randn(5))
-    assert res.shape == (5, max_degree + 1)
+        if not os.path.isfile(self.__file_name):
+            pytest.skip('test data {0} not available'.format(self.__file_name))
 
-    res = grates.utilities.legendre_functions_per_order(max_degree, order, [1, 2, 3])
-    assert res.shape == (3, max_degree + 1 - order)
+        with open(self.__file_name, 'rb') as f:
+            test_data = pickle.load(f)
 
-    with pytest.raises(ValueError):
-        grates.utilities.legendre_functions_per_order(max_degree, max_degree + 1, [1, 2, 3])
+            Pnm = grates.utilities.legendre_functions(test_data['input']['max_degree'], test_data['input']['colat'])
+            Pn = grates.utilities.legendre_polynomials(test_data['input']['max_degree'], test_data['input']['colat'])
+            Pnm_orderwise = grates.utilities.legendre_functions_per_order(test_data['input']['max_degree'], test_data['input']['test_order'], test_data['input']['colat'])
+            Ynm = grates.utilities.spherical_harmonics(test_data['input']['max_degree'], test_data['input']['colat'], test_data['input']['lon'])
+            lsum = grates.utilities.legendre_summation(test_data['input']['coefficients'], test_data['input']['colat'])
 
+            np.testing.assert_array_equal(Pnm, test_data['output']['Pnm'])
+            np.testing.assert_array_equal(Pn, test_data['output']['Pn'])
+            np.testing.assert_array_equal(Pnm_orderwise, test_data['output']['Pnm_orderwise'])
+            np.testing.assert_array_equal(Ynm, test_data['output']['Ynm'])
+            np.testing.assert_array_equal(lsum, test_data['output']['lsum'])
 
-def test_legendre_summation():
+    def test_legendre_functions_interface(self):
 
-    res = grates.utilities.legendre_summation(np.random.randn(5), np.random.randn(3))
-    assert res.shape == (3,)
+        max_degree = 5
 
-    res = grates.utilities.legendre_summation(np.random.randn(5), 1)
-    assert res.shape == (1,)
+        res = grates.utilities.legendre_functions(max_degree, 1)
+        assert res.shape == (1, max_degree + 1, max_degree + 1)
 
-    res = grates.utilities.legendre_summation(np.random.randn(5), [1, 2])
-    assert res.shape == (2,)
+        res = grates.utilities.legendre_functions(max_degree, np.random.randn(5))
+        assert res.shape == (5, max_degree + 1, max_degree + 1)
 
+        res = grates.utilities.legendre_functions(max_degree, [1, 2, 3])
+        assert res.shape == (3, max_degree + 1, max_degree + 1)
 
-def test_trigonimetric_functions():
+    def test_legendre_functions_per_order_interface(self):
 
-    max_degree = 5
+        max_degree = 5
+        order = 3
 
-    res = grates.utilities.trigonometric_functions(max_degree, 1)
-    assert res.shape == (1, max_degree + 1, max_degree + 1)
+        res = grates.utilities.legendre_functions_per_order(max_degree, order, 1)
+        assert res.shape == (1, max_degree + 1 - order)
 
-    res = grates.utilities.trigonometric_functions(max_degree, np.random.randn(5))
-    assert res.shape == (5, max_degree + 1, max_degree + 1)
+        res = grates.utilities.legendre_functions_per_order(max_degree, order, np.random.randn(5))
+        assert res.shape == (5, max_degree + 1 - order)
 
+        res = grates.utilities.legendre_functions_per_order(max_degree, 0, np.random.randn(5))
+        assert res.shape == (5, max_degree + 1)
 
-def test_spherical_harmonics():
+        res = grates.utilities.legendre_functions_per_order(max_degree, order, [1, 2, 3])
+        assert res.shape == (3, max_degree + 1 - order)
 
-    max_degree = 5
+        with pytest.raises(ValueError):
+            grates.utilities.legendre_functions_per_order(max_degree, max_degree + 1, [1, 2, 3])
 
-    res = grates.utilities.spherical_harmonics(max_degree, 1, 1)
-    assert res.shape == (1, max_degree + 1, max_degree + 1)
+    def test_legendre_summation_interface(self):
 
-    res = grates.utilities.spherical_harmonics(max_degree, 1, np.random.randn(5))
-    assert res.shape == (5, max_degree + 1, max_degree + 1)
+        res = grates.utilities.legendre_summation(np.random.randn(5), np.random.randn(3))
+        assert res.shape == (3,)
 
-    res = grates.utilities.spherical_harmonics(max_degree, np.random.randn(5), 1)
-    assert res.shape == (5, max_degree + 1, max_degree + 1)
+        res = grates.utilities.legendre_summation(np.random.randn(5), 1)
+        assert res.shape == (1,)
 
-    res = grates.utilities.spherical_harmonics(max_degree, np.random.randn(5), np.random.randn(5))
-    assert res.shape == (5, max_degree + 1, max_degree + 1)
+        res = grates.utilities.legendre_summation(np.random.randn(5), [1, 2])
+        assert res.shape == (2,)
 
-    with pytest.raises(ValueError):
-        grates.utilities.spherical_harmonics(max_degree, np.random.randn(5), np.random.randn(6))
+    def test_trigonimetric_functions_interface(self):
+
+        max_degree = 5
+
+        res = grates.utilities.trigonometric_functions(max_degree, 1)
+        assert res.shape == (1, max_degree + 1, max_degree + 1)
+
+        res = grates.utilities.trigonometric_functions(max_degree, np.random.randn(5))
+        assert res.shape == (5, max_degree + 1, max_degree + 1)
+
+    def test_spherical_harmonics_interface(self):
+
+        max_degree = 5
+
+        res = grates.utilities.spherical_harmonics(max_degree, 1, 1)
+        assert res.shape == (1, max_degree + 1, max_degree + 1)
+
+        res = grates.utilities.spherical_harmonics(max_degree, 1, np.random.randn(5))
+        assert res.shape == (5, max_degree + 1, max_degree + 1)
+
+        res = grates.utilities.spherical_harmonics(max_degree, np.random.randn(5), 1)
+        assert res.shape == (5, max_degree + 1, max_degree + 1)
+
+        res = grates.utilities.spherical_harmonics(max_degree, np.random.randn(5), np.random.randn(5))
+        assert res.shape == (5, max_degree + 1, max_degree + 1)
+
+        with pytest.raises(ValueError):
+            grates.utilities.spherical_harmonics(max_degree, np.random.randn(5), np.random.randn(6))
 
 
 def test_ravel_coefficients():
@@ -136,13 +186,5 @@ def test_unravel_coefficients():
         grates.utilities.unravel_coefficients(np.random.randn(1, 1, 1, 1), 2, 5)
 
 
-def test_normal_gravity():
 
-    res = grates.utilities.normal_gravity(6378136.3, 0.1)
-    assert res.shape == (1,)
-
-    res = grates.utilities.normal_gravity(6378136.3, np.random.randn(5))
-    assert res.shape == (5,)
-
-    res = grates.utilities.normal_gravity(6378136.3, [1, 2, 3])
-    assert res.shape == (3,)
+test_classes = [TestLegendreFunctions()]
