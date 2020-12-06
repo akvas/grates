@@ -1343,57 +1343,6 @@ def spherical_distance(lon1, lat1, lon2, lat2, r=6378136.3):
                       np.sin(lat1) * np.sin(lat2) + np.cos(lat1) * np.cos(lat2) * np.cos(lon2 - lon1)) * r
 
 
-def ellipsoidal_distance(lon1, lat1, lon2, lat2, a=6378137.0, f=298.2572221010**-1):
-    """
-    Compute the distance between points (lon1, lat1) and (lon2, lat2) on an ellipsoid with
-    semi-major axis a and flattening f.
-
-    Parameters
-    ----------
-    lon1 : float, array_like(m,), array_like(m,n)
-        longitude of source points in radians
-    lat1 : float, array_like(m,), array_like(m,n)
-        latitude of source points in radians
-    lon2 : float, array_like(m,), array_like(m,n)
-        longitude of target points in radians
-    lat2 : float, array_like(m,), array_like(m,n)
-        latitude of target points in radians
-    a : float
-        semi-major axis of ellipsoid
-    f : float
-        flattening of ellipsoid
-
-    Returns
-    -------
-    d : ndarray(m,), ndarray(m,n)
-        ellipsoidal distance between points (lon1, lat1) and (lon2, lat2) in meters
-
-    Notes
-    -----
-    This function uses the approximation formula by Lambert [1]_ and gives meter level accuracy.
-
-    References
-    ----------
-    .. [1] Lambert, W. D (1942). "The distance between two widely separated points
-           on the surface of the earth". J. Washington Academy of Sciences. 32 (5): 125–130.
-
-    """
-    beta1 = np.arctan((1 - f) * np.tan(lat1))
-    beta2 = np.arctan((1 - f) * np.tan(lat2))
-
-    sigma = spherical_distance(lon1, beta1, lon2, beta2, r=1)
-    L = sigma != 0.0
-
-    P = (beta1 + beta2) * 0.5
-    Q = (beta2 - beta1) * 0.5
-
-    X = (sigma[L] - np.sin(sigma[L])) * ((np.sin(P[L]) * np.cos(Q[L])) / np.cos(sigma[L] * 0.5))**2
-    Y = (sigma[L] + np.sin(sigma[L])) * ((np.cos(P[L]) * np.sin(Q[L])) / np.sin(sigma[L] * 0.5))**2
-
-    sigma[L] -= 0.5 * f * (X + Y)
-    return a * sigma
-
-
 def ellipsoidal2cartesian(lon, lat, h=0, a=6378137.0, f=298.2572221010**-1):
     """
     Compute 3D cartesian coordinates from ellipsoidal (geographic) longitude, latitude and height.
