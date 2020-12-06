@@ -121,7 +121,7 @@ class Grid(metaclass=abc.ABCMeta):
         cartesian_coordinates : ndarray(point_count, 3)
             ndarray containing the cartesian coordinates of the grid points (x, y, z).
         """
-        return ellipsoidal2cartesian(self.longitude, self.latitude, h=0, a=self.semimajor_axis, f=self.flattening)
+        return geodetic2cartesian(self.longitude, self.latitude, h=0, a=self.semimajor_axis, f=self.flattening)
 
     def mean(self, mask=None):
         """
@@ -1205,7 +1205,7 @@ def spherical_pip(polygon, lon, lat, a=6378137.0, f=298.2572221010**-1):
     contains : ndarray(m,)
         boolean array indicating which point is contained in the polygon
     """
-    cartesian_coords = ellipsoidal2cartesian(polygon[:, 0], polygon[:, 1], h=0, a=a, f=f)
+    cartesian_coords = geodetic2cartesian(polygon[:, 0], polygon[:, 1], h=0, a=a, f=f)
     cartesian_coords /= np.sqrt(np.sum(cartesian_coords**2, axis=1))[:, np.newaxis]
 
     antipode = -np.mean(cartesian_coords, axis=0)
@@ -1216,7 +1216,7 @@ def spherical_pip(polygon, lon, lat, a=6378137.0, f=298.2572221010**-1):
 
     cartesian_coords = np.append(cartesian_coords, cartesian_coords[0][np.newaxis, :], axis=0)
 
-    xyz = ellipsoidal2cartesian(lon, lat, h=0, a=a, f=f)
+    xyz = geodetic2cartesian(lon, lat, h=0, a=a, f=f)
     xyz /= np.sqrt(np.sum(xyz**2, axis=1))[:, np.newaxis]
 
     inside_polygon = (-xyz @ antipode[:, np.newaxis]).flatten() >= min_cos_angle
@@ -1270,13 +1270,13 @@ def spherical_pib(polygon, lon, lat, buffer, a=6378137.0, f=298.2572221010**-1):
     f : float
         flattening of ellipsoid
     """
-    cartesian_coords = ellipsoidal2cartesian(polygon[:, 0], polygon[:, 1], h=0, a=a, f=f)
+    cartesian_coords = geodetic2cartesian(polygon[:, 0], polygon[:, 1], h=0, a=a, f=f)
     cartesian_coords /= np.sqrt(np.sum(cartesian_coords ** 2, axis=1))[:, np.newaxis]
 
     antipode = -np.mean(cartesian_coords, axis=0)
     antipode /= np.sqrt(np.sum(antipode ** 2))
 
-    xyz = ellipsoidal2cartesian(lon, lat, h=0, a=a, f=f)
+    xyz = geodetic2cartesian(lon, lat, h=0, a=a, f=f)
     xyz /= np.sqrt(np.sum(xyz ** 2, axis=1))[:, np.newaxis]
 
     spherical_cap = -cartesian_coords @ antipode[:, np.newaxis]
@@ -1343,7 +1343,7 @@ def spherical_distance(lon1, lat1, lon2, lat2, r=6378136.3):
                       np.sin(lat1) * np.sin(lat2) + np.cos(lat1) * np.cos(lat2) * np.cos(lon2 - lon1)) * r
 
 
-def ellipsoidal2cartesian(lon, lat, h=0, a=6378137.0, f=298.2572221010**-1):
+def geodetic2cartesian(lon, lat, h=0, a=6378137.0, f=298.2572221010**-1):
     """
     Compute 3D cartesian coordinates from ellipsoidal (geographic) longitude, latitude and height.
 
