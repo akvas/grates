@@ -27,8 +27,10 @@ class TestReferenceField(TestCase):
             pickle.dump(test_data, f)
 
     def delete_data(self):
-
-        os.remove(self.__file_name)
+        try:
+            os.remove(self.__file_name)
+        except FileNotFoundError:
+            pass
 
     def test_reference_field_data(self):
 
@@ -84,4 +86,4 @@ class TestReferenceField(TestCase):
         assert np.isclose(g, 9.8321863685, rtol=1e-9, atol=0)
 
 
-test_classes = [TestReferenceField()]
+test_cases = [TestReferenceField()]

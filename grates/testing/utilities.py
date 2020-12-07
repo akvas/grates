@@ -34,8 +34,10 @@ class TestLegendreFunctions(TestCase):
             pickle.dump(test_data, f)
 
     def delete_data(self):
-
-        os.remove(self.__file_name)
+        try:
+            os.remove(self.__file_name)
+        except FileNotFoundError:
+            pass
 
     def test_legendre_functions_data(self):
 
@@ -131,60 +133,101 @@ class TestLegendreFunctions(TestCase):
             grates.utilities.spherical_harmonics(max_degree, np.random.randn(5), np.random.randn(6))
 
 
-def test_ravel_coefficients():
+class TestCoefficientRavelling(TestCase):
 
-    anm = np.random.randn(6, 6)
+    __file_name = 'test_ravel_coefficients.dat'
 
-    x = grates.utilities.ravel_coefficients(anm)
-    assert x.shape == (anm.size,)
+    def generate_data(self):
 
-    x = grates.utilities.ravel_coefficients(anm, 2, 5)
-    assert x.shape == (32,)
+        anm = np.random.randn(6, 6)
+        x1 = grates.utilities.ravel_coefficients(anm, 2, 4)
+        x2 = grates.utilities.ravel_coefficients(anm)
+        test_data = {'input': {'anm': anm, 'min_degree': 2, 'max_degree': 4}, 'output': {'x1': x1, 'x2': x2}}
 
-    x = grates.utilities.ravel_coefficients(anm, 0, 5)
-    assert x.shape == (anm.size,)
+        with open(self.__file_name, 'wb+') as f:
+            pickle.dump(test_data, f)
 
-    x = grates.utilities.ravel_coefficients(anm, 0, 6)
-    assert x.shape == (49,)
+    def delete_data(self):
+        try:
+            os.remove(self.__file_name)
+        except FileNotFoundError:
+            pass
 
-    anm = np.random.randn(3, 6, 6)
+    def test_ravel_coefficients_data(self):
 
-    x = grates.utilities.ravel_coefficients(anm)
-    assert x.shape == (3, 36)
+        if not os.path.isfile(self.__file_name):
+            pytest.skip('test data {0} not available'.format(self.__file_name))
 
-    x = grates.utilities.ravel_coefficients(anm, 2, 5)
-    assert x.shape == (3, 32)
+        with open(self.__file_name, 'rb') as f:
+            test_data = pickle.load(f)
 
-    x = grates.utilities.ravel_coefficients(anm, 0, 5)
-    assert x.shape == (3, 36)
+            x1 = grates.utilities.ravel_coefficients(test_data['input']['anm'], test_data['input']['min_degree'], test_data['input']['max_degree'])
+            np.testing.assert_array_equal(x1, test_data['output']['x1'])
+            x2 = grates.utilities.ravel_coefficients(test_data['input']['anm'])
+            np.testing.assert_array_equal(x2, test_data['output']['x2'])
 
-    x = grates.utilities.ravel_coefficients(anm, 0, 6)
-    assert x.shape == (3, 49)
+    def test_ravel_coefficients(self):
 
-    with pytest.raises(ValueError):
-        grates.utilities.ravel_coefficients(np.random.randn(1, 1, 1, 1), 0, 6)
+        anm = np.random.randn(6, 6)
+
+        x = grates.utilities.ravel_coefficients(anm)
+        assert x.shape == (anm.size,)
+
+        x = grates.utilities.ravel_coefficients(anm, 2, 5)
+        assert x.shape == (32,)
+
+        x = grates.utilities.ravel_coefficients(anm, 0, 5)
+        assert x.shape == (anm.size,)
+
+        x = grates.utilities.ravel_coefficients(anm, 0, 6)
+        assert x.shape == (49,)
+
+        anm = np.random.randn(3, 6, 6)
+
+        x = grates.utilities.ravel_coefficients(anm)
+        assert x.shape == (3, 36)
+
+        x = grates.utilities.ravel_coefficients(anm, 2, 5)
+        assert x.shape == (3, 32)
+
+        x = grates.utilities.ravel_coefficients(anm, 0, 5)
+        assert x.shape == (3, 36)
+
+        x = grates.utilities.ravel_coefficients(anm, 0, 6)
+        assert x.shape == (3, 49)
+
+        with pytest.raises(ValueError):
+            grates.utilities.ravel_coefficients(np.random.randn(1, 1, 1, 1), 0, 6)
+
+    def test_unravel_coefficients(self):
+
+        x = np.random.randn(36)
+
+        anm = grates.utilities.unravel_coefficients(x)
+        assert anm.shape == (6, 6)
+
+        anm = grates.utilities.unravel_coefficients(x[4:], 2, 5)
+        assert anm.shape == (6, 6)
+
+        x = np.random.randn(3, 36)
+        anm = grates.utilities.unravel_coefficients(x)
+        assert anm.shape == (3, 6, 6)
+
+        anm = grates.utilities.unravel_coefficients(x[:, 4:], 2, 5)
+        assert anm.shape == (3, 6, 6)
+
+        with pytest.raises(ValueError):
+            grates.utilities.unravel_coefficients(np.random.randn(1, 1, 1, 1), 2, 5)
+
+    def test_forward_backward(self):
+
+        anm = np.random.randn(6, 6)
+
+        x = grates.utilities.ravel_coefficients(anm)
+        np.testing.assert_array_equal(anm, grates.utilities.unravel_coefficients(x))
+
+        # x = grates.utilities.ravel_coefficients(anm, 2, 4)
+        # np.testing.assert_array_equal(anm, grates.utilities.unravel_coefficients(x, 2, 4))
 
 
-def test_unravel_coefficients():
-
-    x = np.random.randn(36)
-
-    anm = grates.utilities.unravel_coefficients(x)
-    assert anm.shape == (6, 6)
-
-    anm = grates.utilities.unravel_coefficients(x[4:], 2, 5)
-    assert anm.shape == (6, 6)
-
-    x = np.random.randn(3, 36)
-    anm = grates.utilities.unravel_coefficients(x)
-    assert anm.shape == (3, 6, 6)
-
-    anm = grates.utilities.unravel_coefficients(x[:, 4:], 2, 5)
-    assert anm.shape == (3, 6, 6)
-
-    with pytest.raises(ValueError):
-        grates.utilities.unravel_coefficients(np.random.randn(1, 1, 1, 1), 2, 5)
-
-
-
-test_classes = [TestLegendreFunctions()]
+test_cases = [TestLegendreFunctions(), TestCoefficientRavelling()]
