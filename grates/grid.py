@@ -539,7 +539,7 @@ class RegularGrid(Grid):
         A[:, target_sequence.vector_indices(order=0)] = self.__synthesis_matrix_per_order(0, 'c', min_degree, max_degree, kernel, GM, R)
         for m in range(1, max_degree + 1):
             for basis_function in ('c', 's'):
-                A[:, target_sequence.vector_indices(order=m, basis_function=basis_function)] = self.__synthesis_matrix_per_order(m, basis_function, min_degree, max_degree, kernel, GM, R)
+                A[:, target_sequence.vector_indices(order=m, cs=basis_function)] = self.__synthesis_matrix_per_order(m, basis_function, min_degree, max_degree, kernel, GM, R)
 
         return A
 
@@ -573,7 +573,7 @@ class RegularGrid(Grid):
         A[target_sequence.vector_indices(order=0), :] = self.__analysis_matrix_per_order(0, 'c', min_degree, max_degree, kernel, GM, R)
         for m in range(1, max_degree + 1):
             for basis_function in ('c', 's'):
-                A[target_sequence.vector_indices(order=m, basis_function=basis_function), :] = self.__analysis_matrix_per_order(m, basis_function, min_degree, max_degree, kernel, GM, R)
+                A[target_sequence.vector_indices(order=m, cs=basis_function), :] = self.__analysis_matrix_per_order(m, basis_function, min_degree, max_degree, kernel, GM, R)
 
         return A
 
