@@ -86,4 +86,58 @@ class TestReferenceField(TestCase):
         assert np.isclose(g, 9.8321863685, rtol=1e-9, atol=0)
 
 
-test_cases = [TestReferenceField()]
+class TestCoefficientSequence(TestCase):
+
+    __file_name = 'test_coefficient_sequence_data.dat'
+
+    @staticmethod
+    def create_indices():
+
+        min_degree = 2
+        max_degree = 5
+
+        numberings = {'degree_wise': grates.gravityfield.CoefficientSequenceDegreeWise(min_degree, max_degree),
+                      'order_wise': grates.gravityfield.CoefficientSequenceOrderWise(min_degree, max_degree),
+                      'order_wise_alternating': grates.gravityfield.CoefficientSequenceOrderWiseAlternating(min_degree, max_degree),
+                      'flat_array': grates.gravityfield.CoefficientSequenceFlatArray(max_degree)}
+
+        data = {}
+        for name1, numbering1 in numberings.items():
+            for name2, numbering2 in numberings.items():
+                idx1, idx2 = grates.gravityfield.CoefficientSequence.reorder_indices(numbering1, numbering2)
+                data[name1 + '_' + name2] = {'idx1': idx1, 'idx2': idx2}
+
+        return data
+
+    def generate_data(self):
+
+        test_data = TestCoefficientSequence.create_indices()
+
+        with open(self.__file_name, 'wb+') as f:
+            pickle.dump(test_data, f)
+
+    def delete_data(self):
+        try:
+            os.remove(self.__file_name)
+        except FileNotFoundError:
+            pass
+
+    def test_coefficient_sequence_data(self):
+
+        if not os.path.isfile(self.__file_name):
+            pytest.skip('test data {0} not available'.format(self.__file_name))
+
+        with open(self.__file_name, 'rb') as f:
+            test_data = pickle.load(f)
+            compare_data = TestCoefficientSequence.create_indices()
+
+            for k, v in test_data.items():
+
+                idx1_in, idx2_in = v['idx1'], v['idx2']
+                idx1_out, idx2_out = compare_data[k]['idx1'], compare_data[k]['idx2']
+
+                np.testing.assert_array_equal(idx1_in, idx1_out)
+                np.testing.assert_array_equal(idx2_in, idx2_out)
+
+
+test_cases = [TestReferenceField(), TestCoefficientSequence()]

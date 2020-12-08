@@ -795,30 +795,57 @@ def gridded_rms(temporal_gravityfield, epochs, kernel='ewh', base_grid=grates.gr
 
 
 class CoefficientSequence:
-    """
-    Class representation of the ordering of spherical harmonic coefficients.
 
-    Parameters
-    ----------
-    degrees : array_like(coefficient_count,)
-        spherical harmonic degree of coefficients
-    orders : array_like(coefficient_count,)
-        spherical harmonic order of coefficients
-    basis_functions : array_like(coeffient_count,) containing 'c' or 's'
-        whether the coefficient is a cosine (value 'c') coefficient or sine (value 's') coefficient
-    """
-    def __init__(self, degrees, orders, basis_functions):
+    class Coefficient:
 
-        self.degrees = np.asarray(degrees)
-        self.orders = np.asarray(orders)
-        self.basis_functions = np.asarray(basis_functions)
+        __slots__ = ['degree', 'order', 'basis_function']
+
+        degree: np.uint16
+        order: np.uint16
+        basis_function: np.int8
+
+        def __init__(self, basis_function, n, m):
+
+            self.degree = n
+            self.order = m
+            self.basis_function = basis_function
+
+        def __str__(self):
+            return 'Coefficient({0}, {1:d}, {2:d})'.format('c' if self.basis_function == 0 else 's', self.degree, self.order)
+
+        def __repr__(self):
+            return str(self)
+
+        def __eq__(self, other):
+            return self.basis_function == other.basis_function and self.degree == other.degree and self.order == other.order
+
+    class ComparableCoefficientSequence:
+
+        __slots__ = ['degree', 'order', 'basis_function']
+
+        degree: np.uint16
+        order: np.uint16
+        basis_function: np.int8
+
+        def __init__(self, coefficient):
+
+            self.basis_function = coefficient.basis_function
+            self.degree = coefficient.degree
+            self.order = coefficient.order
+
+        def __eq__(self, other):
+            return self.basis_function == other.basis_function and self.degree == other.degree and self.order == other.order
+
+    def __init__(self, coefficients):
+
+        self.coefficients = tuple(coefficients)
 
     @property
     def coefficient_count(self):
         """Return the number of coefficients in the coefficient sequence."""
-        return self.degrees.size
+        return len(self.coefficients)
 
-    def vector_indices(self, degree=None, order=None, basis_function=None):
+    def vector_indices(self, degree=None, order=None, cs=None):
         """
         Return the indices of a coefficient range represented by degree, order, and basis_function.
 
@@ -839,13 +866,20 @@ class CoefficientSequence:
         mask = np.ones(self.coefficient_count, dtype=bool)
 
         if degree is not None:
-            mask = np.logical_and(mask, self.degrees == degree)
+            mask = np.logical_and(mask, [c.degree == degree for c in self.coefficients])
 
         if order is not None:
-            mask = np.logical_and(mask, self.orders == order)
+            mask = np.logical_and(mask, [c.order == order for c in self.coefficients])
 
-        if basis_function is not None:
-            mask = np.logical_and(mask, self.basis_functions == basis_function)
+        if cs is not None:
+            if cs in ('c', 'cos', 'cosine'):
+                basis_function = 0
+            elif cs in ('s', 'sin', 'sine'):
+                basis_function = 1
+            else:
+                raise ValueError('basis function not recognized')
+
+            mask = np.logical_and(mask, [c.basis_function == basis_function for c in self.coefficients])
 
         return np.where(mask)[0]
 
@@ -868,15 +902,12 @@ class CoefficientSequence:
         target_indices : ndarray(m,)
             indices of common parameters in target sequence
         """
-        source_indices = []
-        target_indices = []
-        for k in range(target_sequence.coefficient_count):
-            other_idx = source_sequence.vector_indices(target_sequence.degrees[k], target_sequence.orders[k], target_sequence.basis_functions[k])
-            if len(other_idx) > 0:
-                source_indices.append(other_idx[0])
-                target_indices.append(k)
+        c1 = [target_sequence.Comparable(c) for c in source_sequence.coefficients]
+        c2 = [target_sequence.Comparable(c) for c in target_sequence.coefficients]
 
-        return np.array(source_indices), np.array(target_indices)
+        _, ix1, ix2 = np.intersect1d(c1, c2, assume_unique=True, return_indices=True)
+
+        return ix1, ix2
 
 
 class CoefficientSequenceDegreeWise(CoefficientSequence):
@@ -893,67 +924,34 @@ class CoefficientSequenceDegreeWise(CoefficientSequence):
     max_degree : int
         maximum degree in sequence
     """
+
+    class Comparable(CoefficientSequence.ComparableCoefficientSequence):
+
+        def __init__(self, coefficient):
+            super(CoefficientSequenceDegreeWise.Comparable, self).__init__(coefficient)
+
+        def __lt__(self, other):
+
+            if self.degree < other.degree:
+                return True
+            if self.degree == other.degree and self.order < other.order:
+                return True
+            if self.degree == other.degree and self.order == other.order and self.basis_function < other.basis_function:
+                return True
+
+            return False
+
     def __init__(self, min_degree, max_degree):
 
-        coefficient_count = (max_degree + 1) * (max_degree + 1) - min_degree * min_degree
-
-        degrees = np.empty(coefficient_count, dtype=int)
-        orders = np.zeros(coefficient_count, dtype=int)
-        basis_functions = np.full(coefficient_count, 'c', dtype=str)
-
-        index = 0
+        coefficients = []
         for n in range(min_degree, max_degree + 1):
-            degrees[index] = n
-            index += 1
+            coefficients.append(super(CoefficientSequenceDegreeWise, self).Coefficient(np.int8(0), n, 0))
 
             for m in range(1, n + 1):
-                degrees[index:index + 2] = n
-                orders[index:index + 2] = m
-                basis_functions[index + 1] = 's'
-                index += 2
+                coefficients.append(super(CoefficientSequenceDegreeWise, self).Coefficient(np.int8(0), n, m))
+                coefficients.append(super(CoefficientSequenceDegreeWise, self).Coefficient(np.int8(1), n, m))
 
-        super(CoefficientSequenceDegreeWise, self).__init__(degrees, orders, basis_functions)
-
-
-class CoefficientSequenceOrderWise(CoefficientSequence):
-    """
-    Orderwise coefficient sequence. Coefficients are ordered by increasing order.
-    For each order first cosine coefficients are ordered by increasing degree, the sine
-    coefficients are ordered by increasing degree.
-
-    Parameters
-    ----------
-    min_degree : int
-        minimum degree in sequence
-    max_degree : int
-        maximum degree in sequence
-    """
-    def __init__(self, min_degree, max_degree):
-
-        coefficient_count = (max_degree + 1) * (max_degree + 1) - min_degree * min_degree
-
-        degrees = np.empty(coefficient_count, dtype=int)
-        orders = np.zeros(coefficient_count, dtype=int)
-        basis_functions = np.full(coefficient_count, 'c', dtype=str)
-
-        index = 0
-        for n in range(min_degree, max_degree + 1):
-            degrees[index] = n
-            index += 1
-
-        for m in range(1, max_degree + 1):
-            for n in range(max(min_degree, m), max_degree + 1):
-                degrees[index] = n
-                orders[index] = m
-                index += 1
-
-            for n in range(max(min_degree, m), max_degree + 1):
-                degrees[index] = n
-                orders[index] = m
-                basis_functions[index] = 's'
-                index += 1
-
-        super(CoefficientSequenceOrderWise, self).__init__(degrees, orders, basis_functions)
+        super(CoefficientSequenceDegreeWise, self).__init__(coefficients)
 
 
 class CoefficientSequenceOrderWiseAlternating(CoefficientSequence):
@@ -969,31 +967,80 @@ class CoefficientSequenceOrderWiseAlternating(CoefficientSequence):
     max_degree : int
         maximum degree in sequence
     """
+
+    class Comparable(CoefficientSequence.ComparableCoefficientSequence):
+
+        def __init__(self, coefficient):
+            super(CoefficientSequenceOrderWiseAlternating.Comparable, self).__init__(coefficient)
+
+        def __lt__(self, other):
+
+            if self.order < other.order:
+                return True
+            if self.order == other.order and self.degree < other.degree:
+                return True
+            if self.degree == other.degree and self.order == other.order and self.basis_function < other.basis_function:
+                return True
+
+            return False
+
     def __init__(self, min_degree, max_degree):
 
-        coefficient_count = (max_degree + 1) * (max_degree + 1) - min_degree * min_degree
-
-        degrees = np.empty(coefficient_count, dtype=int)
-        orders = np.zeros(coefficient_count, dtype=int)
-        basis_functions = np.full(coefficient_count, 'c', dtype=str)
-
-        index = 0
+        coefficients = []
         for n in range(min_degree, max_degree + 1):
-            degrees[index] = n
-            index += 1
+            coefficients.append(super(CoefficientSequenceOrderWiseAlternating, self).Coefficient(np.int8(0), n, 0))
 
         for m in range(1, max_degree + 1):
             for n in range(max(min_degree, m), max_degree + 1):
-                degrees[index] = n
-                orders[index] = m
-                index += 1
+                coefficients.append(super(CoefficientSequenceOrderWiseAlternating, self).Coefficient(np.int8(0), n, m))
+                coefficients.append(super(CoefficientSequenceOrderWiseAlternating, self).Coefficient(np.int8(1), n, m))
 
-                degrees[index] = n
-                orders[index] = m
-                basis_functions[index] = 's'
-                index += 1
+        super(CoefficientSequenceOrderWiseAlternating, self).__init__(coefficients)
 
-        super(CoefficientSequenceOrderWiseAlternating, self).__init__(degrees, orders, basis_functions)
+
+class CoefficientSequenceOrderWise(CoefficientSequence):
+    """
+    Orderwise coefficient sequence. Coefficients are ordered by increasing order.
+    For each order first cosine coefficients are ordered by increasing degree, the sine
+    coefficients are ordered by increasing degree.
+
+    Parameters
+    ----------
+    min_degree : int
+        minimum degree in sequence
+    max_degree : int
+        maximum degree in sequence
+    """
+
+    class Comparable(CoefficientSequence.ComparableCoefficientSequence):
+
+        def __init__(self, coefficient):
+            super(CoefficientSequenceOrderWise.Comparable, self).__init__(coefficient)
+
+        def __lt__(self, other):
+
+            if self.order < other.order:
+                return True
+            if self.order == other.order and self.basis_function < other.basis_function:
+                return True
+            if self.basis_function == other.basis_function and self.order == other.order and  self.degree < other.degree:
+                return True
+
+            return False
+
+    def __init__(self, min_degree, max_degree):
+
+        coefficients = []
+        for n in range(min_degree, max_degree + 1):
+            coefficients.append(super(CoefficientSequenceOrderWise, self).Coefficient(np.int8(0), n, 0))
+
+        for m in range(1, max_degree + 1):
+            for n in range(max(min_degree, m), max_degree + 1):
+                coefficients.append(super(CoefficientSequenceOrderWise, self).Coefficient(np.int8(0), n, m))
+            for n in range(max(min_degree, m), max_degree + 1):
+                coefficients.append(super(CoefficientSequenceOrderWise, self).Coefficient(np.int8(1), n, m))
+
+        super(CoefficientSequenceOrderWise, self).__init__(coefficients)
 
 
 class CoefficientSequenceFlatArray(CoefficientSequence):
@@ -1005,20 +1052,45 @@ class CoefficientSequenceFlatArray(CoefficientSequence):
     max_degree : int
         maximum degree in sequence
     """
+
+    class Comparable(CoefficientSequence.ComparableCoefficientSequence):
+
+        def __init__(self, coefficient):
+            super(CoefficientSequenceFlatArray.Comparable, self).__init__(coefficient)
+
+        def __lt__(self, other):
+
+            row_idx = self.degree if self.basis_function == 0 else self.order - 1
+            other_row_idx = other.degree if other.basis_function == 0 else other.order - 1
+
+            if row_idx < other_row_idx:
+                return True
+
+            col_idx = self.order if self.basis_function == 0 else self.degree
+            other_col_idx = other.order if other.basis_function == 0 else other.degree
+
+            if row_idx == other_row_idx and col_idx < other_col_idx:
+                return True
+
+            return False
+
     def __init__(self, max_degree):
 
         degrees = np.empty((max_degree + 1, max_degree + 1), dtype=int)
         orders = np.empty((max_degree + 1, max_degree + 1), dtype=int)
-        basis_functions = np.empty((max_degree + 1, max_degree + 1), dtype=str)
+        basis_functions = np.zeros((max_degree + 1, max_degree + 1), dtype=np.int8)
 
         for n in range(max_degree + 1):
             degrees[degree_indices(n)] = n
             orders[order_indices(max_degree, n)] = n
 
-        basis_functions[np.tril_indices(basis_functions.shape[0])] = 'c'
-        basis_functions[np.triu_indices(basis_functions.shape[0], 1)] = 's'
+        basis_functions[np.triu_indices(basis_functions.shape[0], 1)] = 1
 
-        super(CoefficientSequenceFlatArray, self).__init__(degrees.flatten(), orders.flatten(), basis_functions.flatten())
+        coefficients = []
+        for bf, n, m in zip(basis_functions.flatten(), degrees.flatten(), orders.flatten()):
+            coefficients.append(super(CoefficientSequenceFlatArray, self).Coefficient(bf, n, m))
+
+        super(CoefficientSequenceFlatArray, self).__init__(coefficients)
 
 
 class ReferenceField(PotentialCoefficients):
