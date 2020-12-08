@@ -1023,7 +1023,7 @@ class CoefficientSequenceOrderWise(CoefficientSequence):
                 return True
             if self.order == other.order and self.basis_function < other.basis_function:
                 return True
-            if self.basis_function == other.basis_function and self.order == other.order and  self.degree < other.degree:
+            if self.basis_function == other.basis_function and self.order == other.order and self.degree < other.degree:
                 return True
 
             return False
