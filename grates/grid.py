@@ -717,17 +717,9 @@ class IrregularGrid(Grid):
         F : ndarray(n, m)
             matrix that relates m grid points to n spherical harmonic coefficients
         """
-        colat = grates.utilities.colatitude(self.__lats, self.semimajor_axis, self.flattening)
-        r = grates.utilities.geocentric_radius(self.__lats, self.semimajor_axis, self.flattening)
-        Ynm = grates.utilities.spherical_harmonics(max_degree, colat, self.__lons)
+        A = self.synthesis_matrix(min_degree, max_degree, kernel, GM, R) * np.sqrt(self.area)[:, np.newaxis]
 
-        grid_kernel = grates.kernel.get_kernel(kernel)
-        for n in range(min_degree, max_degree + 1):
-            row_idx, col_idx = grates.gravityfield.degree_indices(n)
-            continuation = np.power(r / R, n + 1) * R / GM / (4 * np.pi) * self.__areas
-            Ynm[:, row_idx, col_idx] *= (continuation * grid_kernel.coefficient(n, r, colat))[:, np.newaxis]
-
-        return grates.utilities.ravel_coefficients(Ynm, min_degree, max_degree).T
+        return np.linalg.solve(A.T @ A, A.T * np.sqrt(self.area))
 
     def voronoi_cells(self):
         """
