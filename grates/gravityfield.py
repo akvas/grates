@@ -343,30 +343,12 @@ class PotentialCoefficients:
         output_grid : instance of type(grid)
             deep copy of the input grid with the gridded values
         """
-        kernel = grates.kernel.get_kernel(kernel)
+        output_grid = grid.copy()
 
-        if isinstance(grid, grates.grid.RegularGrid):
-            gridded_values = np.zeros((grid.parallels.size, grid.meridians.size))
-            orders = np.arange(self.max_degree + 1)[:, np.newaxis]
-
-            colat = grates.utilities.colatitude(grid.parallels, grid.semimajor_axis, grid.flattening)
-            r = grates.utilities.geocentric_radius(grid.parallels, grid.semimajor_axis, grid.flattening)
-            P = grates.utilities.legendre_functions(self.max_degree, colat)
-            P *= self.anm
-
-            for n in range(self.max_degree + 1):
-                row_idx, col_idx = grates.gravityfield.degree_indices(n)
-                continuation = np.power(self.R / r, n + 1)
-                kn = kernel.inverse_coefficient(n, r, colat)
-
-                CS = np.vstack((np.cos(orders[0:n + 1] * grid.meridians), np.sin(orders[1:n + 1] * grid.meridians)))
-                gridded_values += (P[:, row_idx, col_idx] * (continuation * kn)[:, np.newaxis]) @ CS
-
-            output_grid = grid.copy()
-            output_grid.values = gridded_values * (self.GM / self.R)
-            output_grid.epoch = self.epoch
-        else:
-            raise NotImplementedError('Propagation to arbitrary point distributions is not yet implemented.')
+        output_grid.values = output_grid.synthesis_matrix_per_order(0, 0, self.max_degree, kernel, self.GM, self.R) @ self.anm[:, 0]
+        for m in range(1, self.max_degree + 1):
+            Ak_cnm, Ak_snm = output_grid.synthesis_matrix_per_order(m, 0, self.max_degree, kernel, self.GM, self.R)
+            output_grid.values += Ak_cnm @ self.anm[m:, m] + Ak_snm @ self.anm[m - 1, m:]
 
         return output_grid
 
