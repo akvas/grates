@@ -1166,9 +1166,12 @@ class ReferenceField(PotentialCoefficients):
         xyz[:, 0] = r * np.sin(colat)
         xyz[:, 2] = r * np.cos(colat)
 
+        _, lat, _ = grates.grid.cartesian2geodetic(xyz, self.R, self.flattening)
+
         g = self.gravitational_acceleration(xyz)
         g[:, 0] += self.omega**2 * xyz[:, 0]
-        return np.sqrt(np.sum(g**2, axis=1))
+
+        return -np.cos(lat) * g[:, 0] - np.sin(lat) * g[:, 2]
 
 
 WGS84 = ReferenceField(GM=3986004.418e8, omega=7292115.0e-11, a=6378137.0, f=1 / 298.257223563)
