@@ -1,3 +1,10 @@
+# Copyright (c) 2020-2021 Andreas Kvas
+# See LICENSE for copyright/license details.
+
+"""
+Classes and functions for visualizing data.
+"""
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.patches

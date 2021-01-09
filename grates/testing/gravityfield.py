@@ -1,4 +1,4 @@
-# Copyright (c) 2020 Andreas Kvas
+# Copyright (c) 2020-2021 Andreas Kvas
 # See LICENSE for copyright/license details.
 
 import grates
