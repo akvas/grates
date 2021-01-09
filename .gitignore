@@ -4,3 +4,4 @@ grates/__pycache__
 grates/src/lib
 groopsiobase.*
 grates/testing/__pycache__
+grates/data/__pycache__

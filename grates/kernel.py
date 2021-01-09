@@ -347,7 +347,7 @@ class WaterHeight(Kernel):
     def __init__(self, rho=1025):
 
         self.__rho = rho
-        self.__love_numbers, _, _ = grates.utilities.load_love_numbers()
+        self.__love_numbers, _, _ = grates.data.load_love_numbers()
 
     def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
         """Kernel coefficients for degrees min_degree to max_degree."""
@@ -362,7 +362,7 @@ class OceanBottomPressure(Kernel):
     """
     def __init__(self):
 
-        self.__love_numbers, _, _ = grates.utilities.load_love_numbers()
+        self.__love_numbers, _, _ = grates.data.load_love_numbers()
 
     def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
         """Kernel coefficients for degrees min_degree to max_degree."""
@@ -376,7 +376,7 @@ class SurfaceDensity(Kernel):
     """
     def __init__(self):
 
-        self.__love_numbers, _, _ = grates.utilities.load_love_numbers()
+        self.__love_numbers, _, _ = grates.data.load_love_numbers()
 
     def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
         """Kernel coefficients for degrees min_degree to max_degree."""

@@ -26,6 +26,7 @@ Modules
     :toctree: _generated
     :template: grates_module.rst
 
+    grates.data
     grates.experimental
     grates.filter
     grates.gravityfield
@@ -40,6 +41,7 @@ Modules
 
 """
 
+from . import data
 from . import filter
 from . import gravityfield
 from . import grid
@@ -51,4 +53,4 @@ from . import time
 from . import transport
 from . import utilities
 
-__all__ = ['filter', 'gravityfield', 'grid', 'io', 'kernel', 'lstsq', 'plot', 'time', 'transport', 'utilities']
+__all__ = ['data', 'filter', 'gravityfield', 'grid', 'io', 'kernel', 'lstsq', 'plot', 'time', 'transport', 'utilities']

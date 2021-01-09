@@ -8,7 +8,6 @@ Spatial filters for post-processing of potential coefficients.
 from grates.gravityfield import PotentialCoefficients
 import grates.kernel
 import grates.utilities
-import pkg_resources
 import numpy as np
 import abc
 import scipy.signal as sig
@@ -233,13 +232,7 @@ class DDK(OrderWiseFilter):
         block_matrix : list of ndarrays
             orderwise matrix blocks (alternating cosine/sine per order, order 0 only contains cosine coefficients)
         """
-        with np.load(pkg_resources.resource_filename('grates', 'data/ddk_normal_blocks.npz')) as f:
-            blocks = [f['order0_cos']]
-            for m in range(1, 120 + 1):
-                blocks.append(f['order{0:d}_cos'.format(m)])
-                blocks.append(f['order{0:d}_sin'.format(m)])
-
-            return blocks
+        return grates.data.ddk_normal_blocks()
 
     @staticmethod
     def normal_equation_matrix():
