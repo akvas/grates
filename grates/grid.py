@@ -270,7 +270,7 @@ class Grid(metaclass=abc.ABCMeta):
 
         _, index_3d = tree.query(sample_coordinates[::1, :])
 
-        point_index = [None] * self.point_count()
+        point_index = [None] * self.point_count
         for k in range(len(point_index)):
             point_index[k] = np.nonzero(k == index_3d)[0]
 
