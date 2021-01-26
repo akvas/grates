@@ -136,7 +136,7 @@ def voronoi_bin(lon, lat, C=None, ax=None, grid=grates.grid.GeodesicGrid(25), mi
     return p
 
 
-def colorbar(mappable, ax=None, width=0.75, height=0.05, **kwargs):
+def colorbar(mappable, ax=None, width=0.75, height=0.05, offset=0.1, **kwargs):
     """
     Add a horizontal colorbar to an existing axes.
 
@@ -150,6 +150,8 @@ def colorbar(mappable, ax=None, width=0.75, height=0.05, **kwargs):
         colorbar width (normalized)
     height : float
         colorbar height (normalized)
+    offset : float
+        offset between plot and colorbar axes
     kwargs :
         passed onto matplotlib.figure.Figure.colorbar
 
@@ -162,7 +164,7 @@ def colorbar(mappable, ax=None, width=0.75, height=0.05, **kwargs):
         ax = plt.gca()
 
     cbaxes = inset_axes(ax, width='{0:f}%'.format(width*100), height='{0:f}%'.format(height*100), loc='lower center',
-                        bbox_to_anchor=(0, -0.1, 1, 1), bbox_transform=ax.transAxes, borderpad=0, )
+                        bbox_to_anchor=(0, -offset, 1, 1), bbox_transform=ax.transAxes, borderpad=0, )
     cbar = ax.figure.colorbar(mappable, ax=ax, cax=cbaxes, orientation='horizontal', **kwargs)
 
     return cbar
