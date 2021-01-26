@@ -87,6 +87,39 @@ def date_iterator(start, stop, step):
         current += step
 
 
+def year_iterator(start, stop, use_middle=False):
+    """
+    Generator for a yearly sequence of datetime objects.
+
+    To be consistent with Python ranges, the last epoch generated will be strictly less than `stop`.
+
+    Parameters
+    ----------
+    start : datetime object
+        epoch from which the first year will be generated
+    stop : datetime object
+        epoch from which the last year will be generated (last month will be strictly less than stop)
+    use_middle : bool
+        If True, the midpoint of each year will be returned, otherwise the first of each year is used (default: False)
+
+    Returns
+    -------
+    g : Generator object
+        Generator for monthly datetime objects
+
+    """
+    current = dt.datetime(start.year, 1, 1)
+    if use_middle:
+        current += (dt.datetime(current.year + 1, 1, 1) - current) * 0.5
+
+    while current < stop:
+        yield current
+
+        current = dt.datetime(current.year + 1, 1, 1)
+        if use_middle:
+            current += (dt.datetime(current.year + 1, 1, 1) - current) * 0.5
+
+
 def month_iterator(start, stop, use_middle=False):
     """
     Generator for a monthly sequence of datetime objects.
