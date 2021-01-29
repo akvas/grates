@@ -621,6 +621,46 @@ class RegularGrid(Grid):
                                                        lat_edges[parallel_index] - lat_edges[parallel_index + 1]))
         return cells
 
+    def to_potential_coefficients(self, min_degree, max_degree, kernel='potential', GM=3.9860044150e+14, R=6.3781363000e+06):
+        """
+        Perform spherical harmonic analysis of the grid values.
+
+        Parameters
+        ----------
+        min_degree : int
+            minimum degree of the analysis
+        max_degree : int
+            maximum degree of the analysis
+        kernel : str
+            name of the grid value kernel
+        GM : float
+            geocentric gravitational constant
+        R : float
+            reference radius
+
+        Returns
+        -------
+        potential_coefficients : PotentialCoefficients
+            result of the spherical harmonic analysis as potential coefficients
+        """
+        if self.values is None:
+            raise ValueError('grid has no values to propagate to potential coefficients')
+        anm = np.zeros((max_degree + 1, max_degree + 1))
+        values = self.values
+
+        matrix_cnm = self.__analysis_matrix_per_order(0, min_degree, max_degree, kernel, GM, R)
+        anm[min_degree:, 0] = matrix_cnm @ values
+        for m in range(1, max_degree + 1):
+            matrix_cnm, matrix_snm = self.__analysis_matrix_per_order(m, min_degree, max_degree, kernel, GM, R)
+            idx_start = max(m, min_degree)
+            anm[idx_start:, m] = matrix_cnm @ values
+            anm[m - 1, idx_start:] = matrix_snm @ values
+
+        coeffs = grates.gravityfield.PotentialCoefficients(GM, R)
+        coeffs.anm = anm
+
+        return coeffs
+
 
 class IrregularGrid(Grid):
     """
