@@ -244,8 +244,11 @@ class Grid(metaclass=abc.ABCMeta):
         remaining_latitude = lats[grid_mask]
         remaining_areas = areas[grid_mask] if areas is not None else None
 
-        return IrregularGrid(remaining_longitude, remaining_latitude, remaining_areas,
-                             self.semimajor_axis, self.flattening)
+        grid = IrregularGrid(remaining_longitude, remaining_latitude, remaining_areas, self.semimajor_axis, self.flattening)
+        try:
+            return grid.to_regular()
+        except ValueError:
+            return grid
 
     def nn_index(self, lon, lat):
         """
@@ -420,6 +423,30 @@ class RegularGrid(Grid):
         grid.epoch = self.epoch
 
         return grid
+
+    def to_regular(self, threshold=1e-6):
+        """
+        Try to coerce the grid into a regular sampling given by meridians and parallels.
+
+        Parameters
+        ----------
+        threshold : float
+            distance in which two points are considered equal, given in meters on the sphere
+
+        Returns
+        -------
+        grid : RegularGrid
+            regular representation of the irregular grid
+
+        Raises
+        ------
+        ValueError:
+            if the grid cannot be represented by parallels and meridians
+        """
+        if threshold <= 0:
+            raise ValueError('threshold should be positive (got {0:e})'.format(threshold))
+
+        return self.copy()
 
     @property
     def semimajor_axis(self):
@@ -617,6 +644,55 @@ class IrregularGrid(Grid):
         if self.__values is not None:
             grid.values = self.values.copy()
         grid.epoch = self.epoch
+
+        return grid
+
+    def to_regular(self, threshold=1e-6):
+        """
+        Try to coerce the grid into a regular sampling given by meridians and parallels.
+
+        Parameters
+        ----------
+        threshold : float
+            distance in which two points are considered equal, given in meters on the ellipsoid
+
+        Returns
+        -------
+        grid : RegularGrid
+            regular representation of the irregular grid
+
+        Raises
+        ------
+        ValueError:
+            if the grid cannot be represented by parallels and meridians
+        """
+        if threshold <= 0:
+            raise ValueError('threshold should be positive (got {0:e})'.format(threshold))
+
+        threshold /= self.semimajor_axis
+
+        sorted_longitude = np.sort(self.longitude)
+        meridians = []
+        search_idx = 0
+        while search_idx < sorted_longitude.size and len(meridians) < self.point_count:
+            meridians.append(sorted_longitude[search_idx])
+            search_idx += np.searchsorted(sorted_longitude[search_idx + 1:], sorted_longitude[search_idx] + threshold) + 1
+
+        sorted_latitude = np.sort(self.latitude)
+        parallels = []
+        search_idx = 0
+        while search_idx < sorted_latitude.size and len(parallels) < self.point_count:
+            parallels.append(sorted_latitude[search_idx])
+            search_idx += np.searchsorted(sorted_latitude[search_idx + 1:], sorted_latitude[search_idx] + threshold) + 1
+
+        if len(meridians) * len(parallels) != self.point_count:
+            raise ValueError('grid cannot be coerced to a regular sampling')
+
+        grid = RegularGrid(np.array(meridians), np.array(parallels[::-1]), a=self.semimajor_axis, f=self.flattening)
+        if self.values is not None:
+            tree = scipy.spatial.cKDTree(np.vstack((self.longitude, self.latitude)).T)
+            _, index = tree.query(np.vstack((grid.longitude, grid.latitude)).T)
+            grid.values = self.values[index]
 
         return grid
 
