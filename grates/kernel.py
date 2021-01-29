@@ -49,6 +49,9 @@ def get_kernel(kernel_name):
     elif kernel_name.lower() in ['surface_density']:
         ker = grates.kernel.SurfaceDensity()
 
+    elif kernel_name.lower() in ['anomaly', 'gravity_anomaly']:
+        ker = grates.kernel.GravityAnomaly()
+
     else:
         raise ValueError("Unrecognized kernel '{0:s}'.".format(kernel_name))
 
@@ -129,7 +132,8 @@ class Kernel(metaclass=abc.ABCMeta):
         inverse_coeff : ndarray(m,)
             inverse kernel coefficient for degree n
         """
-        return self.coefficient(n, r, colat)**-1
+        kn = self.coefficient(n, r, colat)
+        return np.zeros(kn.shape) if np.allclose(kn, 0.0) else 1.0 / kn
 
     def coefficient(self, n, r=6378136.3, colat=0):
         """
@@ -171,7 +175,8 @@ class Kernel(metaclass=abc.ABCMeta):
         kn : ndarray(m, max_degree + 1 - min_degree)
             inverse kernel coefficients for degrees min_degree to max_degree for all evaluation points
         """
-        return 1.0 / self.coefficients(min_degree, max_degree, r, colat)
+        kn = self.coefficients(min_degree, max_degree, r, colat)
+        return np.vstack([np.zeros(kn.shape[0]) if np.allclose(kn[:, k], 0.0) else 1.0 / kn[:, k] for k in range(kn.shape[1])]).T
 
     def coefficient_array(self, min_degree, max_degree, r=6378136.3, colat=0):
         """
@@ -396,6 +401,18 @@ class Potential(Kernel):
         count = max(np.asarray(r).size, np.asarray(colat).size)
 
         return np.ones((count, max_degree + 1 - min_degree))
+
+
+class GravityAnomaly(Kernel):
+    """
+    """
+    def __init__(self):
+        pass
+
+    def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
+        """Kernel coefficients for degrees min_degree to max_degree."""
+        kn = np.array([1 / (n - 1) if n != 1 else 0.0 for n in np.arange(min_degree, max_degree + 1, dtype=float)])
+        return (kn[:, np.newaxis] * r).T
 
 
 class Gauss(Kernel):
