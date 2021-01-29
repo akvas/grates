@@ -661,6 +661,55 @@ class RegularGrid(Grid):
 
         return coeffs
 
+    def covariance_propagation(self, covariance_matrix, min_degree, max_degree, kernel='potential', GM=3.9860044150e+14, R=6.3781363000e+06):
+        """
+        Propagate a spherical harmonic covariance matrix to gridded values. Only the main diagonal of the grid covariance matrix is preserved.
+        This method sets the grid values to the gridded standard deviations.
+
+        Parameters
+        ----------
+        covariance_matrix : ndarray(m, m)
+            2d ndarray representing the spherical harmonic covariance matrix given in degreewise order
+        min_degree : int
+            minimum degree of the analysis
+        max_degree : int
+            maximum degree of the analysis
+        kernel : str
+            name of the grid value kernel
+        GM : float
+            geocentric gravitational constant
+        R : float
+            reference radius
+
+        Returns
+        -------
+        standard_deviation : ndarray(n,)
+            1d-ndarray containing the standard deviations associated with the grid points
+        """
+        grid_covariance = np.zeros(self.point_count)
+
+        colat = grates.utilities.colatitude(self.parallels, self.semimajor_axis, self.flattening)
+        r = grates.utilities.geocentric_radius(self.parallels, self.semimajor_axis, self.flattening)
+
+        grid_kernel = grates.kernel.get_kernel(kernel)
+        kn = grid_kernel.inverse_coefficients(0, max_degree, r, colat) * np.power((R / r)[:, np.newaxis], np.arange(max_degree + 1, dtype=int) + 1) * GM / R
+
+        Pnm = grates.utilities.legendre_functions(max_degree, colat)
+        Pnm[:, :, 0] *= kn
+        for m in range(1, max_degree + 1):
+            Pnm[:, m:, m] *= kn[:, m:]
+            Pnm[:, m - 1, m:] *= kn[:, m:]
+        Pnm = grates.utilities.ravel_coefficients(Pnm, min_degree, max_degree)
+        cs = grates.utilities.ravel_coefficients(grates.utilities.trigonometric_functions(max_degree, self.meridians), min_degree, max_degree)
+
+        for k in range(self.parallels.size):
+            F = cs * Pnm[k:k + 1, :]
+            grid_covariance[k * self.meridians.size:(k + 1) * self.meridians.size] = np.diag(F @ covariance_matrix @ F.T)
+
+        self.values = np.sqrt(grid_covariance)
+
+        return np.sqrt(grid_covariance)
+
 
 class IrregularGrid(Grid):
     """
@@ -875,6 +924,57 @@ class IrregularGrid(Grid):
 
             cells.append(PolygonSurfaceElement(lon[idx], lat[idx]))
         return cells
+
+    def covariance_propagation(self, covariance_matrix, min_degree, max_degree, kernel='potential', GM=3.9860044150e+14, R=6.3781363000e+06):
+        """
+        Propagate a spherical harmonic covariance matrix to gridded values. Only the main diagonal of the grid covariance matrix is preserved.
+        This method sets the grid values to the gridded standard deviations.
+
+        Parameters
+        ----------
+        covariance_matrix : ndarray(m, m)
+            2d ndarray representing the spherical harmonic covariance matrix given in degreewise order
+        min_degree : int
+            minimum degree of the analysis
+        max_degree : int
+            maximum degree of the analysis
+        kernel : str
+            name of the grid value kernel
+        GM : float
+            geocentric gravitational constant
+        R : float
+            reference radius
+
+        Returns
+        -------
+        standard_deviation : ndarray(n,)
+            1d-ndarray containing the standard deviations associated with the grid points
+        """
+        grid_covariance = np.zeros(self.point_count)
+        blocking_factor = 256
+        blocks = [0]
+        while blocks[-1] < self.point_count:
+            blocks.append(min(blocks[-1] + blocking_factor, self.point_count))
+
+        grid_kernel = grates.kernel.get_kernel(kernel)
+        for k in range(len(blocks) - 1):
+            colat = grates.utilities.colatitude(self.latitude[blocks[k]:blocks[k + 1]], self.semimajor_axis, self.flattening)
+            r = grates.utilities.geocentric_radius(self.latitude[blocks[k]:blocks[k + 1]], self.semimajor_axis, self.flattening)
+
+            kn = grid_kernel.inverse_coefficients(0, max_degree, r, colat) * np.power((R / r)[:, np.newaxis], np.arange(max_degree + 1, dtype=int) + 1) * GM / R
+
+            Ynm = grates.utilities.spherical_harmonics(max_degree, colat, self.longitude[blocks[k]:blocks[k + 1]])
+            Ynm[:, :, 0] *= kn
+            for m in range(1, max_degree + 1):
+                Ynm[:, m:, m] *= kn[:, m:]
+                Ynm[:, m - 1, m:] *= kn[:, m:]
+
+            F = grates.utilities.ravel_coefficients(Ynm, min_degree, max_degree)
+            grid_covariance[blocks[k]:blocks[k + 1]] = np.diag(F @ covariance_matrix @ F.T)
+
+        self.values = np.sqrt(grid_covariance)
+
+        return np.sqrt(grid_covariance)
 
 
 class GeographicGrid(RegularGrid):
