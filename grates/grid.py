@@ -181,7 +181,7 @@ class Grid(metaclass=abc.ABCMeta):
         else:
             return np.sqrt(np.mean(self.values[mask]**2))
 
-    def create_mask(self, basin):
+    def create_mask(self, basin, buffer=None):
         """
         Create a mask (boolean array) for the Geographic grid instance based on a polygon.
 
@@ -189,13 +189,15 @@ class Grid(metaclass=abc.ABCMeta):
         ----------
         basin : Basin
             Basin instance.
+        buffer : float
+            buffer around the basin polygons in meters (default: no buffer)
 
         Returns
         -------
         mask : array_like(m,n)
             boolean array of size(nlons, nlats), True for points inside the polygon, False for points outside.
         """
-        return basin.contains_points(self.longitude, self.latitude)
+        return basin.contains_points(self.longitude, self.latitude, buffer)
 
     def distance_matrix(self):
         """
