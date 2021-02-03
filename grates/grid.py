@@ -219,7 +219,7 @@ class Grid(metaclass=abc.ABCMeta):
 
         return psi
 
-    def subset(self, mask, invert_mask=False):
+    def subset(self, mask):
         """
         Subset grid based on basin polygons.
 
@@ -227,8 +227,6 @@ class Grid(metaclass=abc.ABCMeta):
         ----------
         mask : array_like(point_count), None
             boolean array with the same shape as the value array. If None, all points are averaged.
-        invert_mask : bool
-            if True the subset is created from all points outside the basin
 
         Returns
         -------
@@ -237,14 +235,9 @@ class Grid(metaclass=abc.ABCMeta):
         """
         lons, lats, areas = self.longitude, self.latitude, self.area
 
-        if invert_mask:
-            grid_mask = ~mask
-        else:
-            grid_mask = mask
-
-        remaining_longitude = lons[grid_mask]
-        remaining_latitude = lats[grid_mask]
-        remaining_areas = areas[grid_mask] if areas is not None else None
+        remaining_longitude = lons[mask]
+        remaining_latitude = lats[mask]
+        remaining_areas = areas[mask] if areas is not None else None
 
         grid = IrregularGrid(remaining_longitude, remaining_latitude, remaining_areas, self.semimajor_axis, self.flattening)
         try:
