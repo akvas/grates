@@ -148,7 +148,7 @@ class Grid(metaclass=abc.ABCMeta):
 
         areas = self.area
         if areas is not None:
-            return np.sum(areas * self.values[mask]) / np.sum(areas)
+            return np.sum(areas[mask] * self.values[mask]) / np.sum(areas[mask])
         else:
             return np.mean(self.values[mask])
 
@@ -177,7 +177,7 @@ class Grid(metaclass=abc.ABCMeta):
 
         areas = self.area
         if areas is not None:
-            return np.sqrt(np.sum(areas * self.values[mask]**2) / np.sum(areas))
+            return np.sqrt(np.sum(areas[mask] * self.values[mask]**2) / np.sum(areas[mask]))
         else:
             return np.sqrt(np.mean(self.values[mask]**2))
 
