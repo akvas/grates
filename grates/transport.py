@@ -2,12 +2,13 @@
 # See LICENSE for copyright/license details.
 
 """
-Meridional transport from satellite gravimetry.
+Integrated transport from satellite gravimetry.
 """
 
 import abc
 import numpy as np
 import scipy.integrate
+import scipy.interpolate
 import grates.kernel
 import grates.utilities
 import grates.grid
@@ -16,10 +17,11 @@ import grates.grid
 class Bathymetry(metaclass=abc.ABCMeta):
     """
     Base class for discrete ocean bathymetry. Derived classes must implement a cross_section method
-    which returns a 1d array given a latiude.
+    which returns a 1d array given central longitude and latiude, azimuth and a sampling. Cross sections
+    are constructed along lines of constant azimuth (loxodromes).
     """
     @abc.abstractmethod
-    def cross_section(self, latitude):
+    def cross_section(self, central_longitude, central_latitude, azimuth, sampling):
         pass
 
 
@@ -46,24 +48,92 @@ class BathymetryGridded(Bathymetry):
 
         self.__longitude = np.asarray(longitude)
         self.__latitude = np.asarray(latitude)
-        self.__elevation = np.asarray(elevation)
+        elevation = np.asarray(elevation)
         self.__a = a
         self.__f = f
         self.__basin = basin
+        self.__elevation = scipy.interpolate.RegularGridInterpolator((self.__latitude, self.__longitude), elevation)
 
-    def cross_section(self, latitude):
+    def cross_section(self, central_longitude, central_latitude, azimuth, sampling):
+        """
+        Construct a cross section given longitude, latitude of the central point and the directional azimuth (0: south to north, pi/2: west to east).
+        Cross sections are constructed along lines of constant azimuth (loxodromes) by bilinearly interpolating the gridded bathymetry to the points
+        along the cross section.
 
-        latitude_index = np.searchsorted(self.__latitude, latitude)
+        Parameters
+        ----------
+        central_longitude : float
+            longitude of central point in radians
+        central_latitude : float
+            latitude of central point in radians
+        azimuth : float
+            directional azimuth in radians (0: south to north, pi/2: west to east)
+        sampling : float
+            sampling along the loxodrome in meters (note: should be should small enough to capure all features in the input bathymetry)
+
+        Returns
+        -------
+        cs : CrossSection
+            class representation of the cross section
+        """
+        def generate_points(central_longitude, central_latitude, azimuth, sampling):
+
+            if np.isclose(np.cos(azimuth), 0, rtol=0, atol=1e-15):
+                r1 = np.arange(0, np.pi * self.__a * np.cos(central_latitude), sampling)
+                r = np.concatenate((-r1[::-1], r1[1:]))
+
+                lon = np.mod(r / (self.__a * np.cos(central_latitude)) + central_longitude + np.pi, 2 * np.pi) - np.pi
+                lat = np.full(lon.shape, central_latitude)
+            else:
+                max_distance = self.__a * np.pi
+
+                r1 = np.arange(0, max_distance, sampling)
+                r = np.concatenate((-r1[::-1], r1[1:]))
+
+                lat = r / self.__a * np.cos(azimuth) + central_latitude
+                lat[lat > 0.5 * np.pi] = np.pi - lat[lat > 0.5 * np.pi]
+                lat[lat < -0.5 * np.pi] = -lat[lat < -0.5 * np.pi] - np.pi
+                lon = central_longitude + np.tan(azimuth) * np.log(np.tan(lat * 0.5 + np.pi * 0.25) / np.tan(central_latitude * 0.5 + np.pi * 0.25))
+
+            in_bounds = np.logical_and(np.logical_and(lon >= np.min(self.__longitude), lon <= np.max(self.__longitude)),
+                                       np.logical_and(lat >= np.min(self.__latitude), lat <= np.max(self.__latitude)))
+            lon = lon[in_bounds]
+            lat = lat[in_bounds]
+            r = r[in_bounds]
+
+            return np.vstack((lat, lon)).T, r
+
+        points_sample, r_sample = generate_points(central_longitude, central_latitude, azimuth, sampling)
+        z = self.__elevation(points_sample, method='linear')
+        dz = np.gradient(z, r_sample)
 
         if self.__basin is not None:
-            mask = self.__basin.contains_points(self.__longitude, latitude)
+            mask = self.__basin.contains_points(points_sample[:, 1], points_sample[:, 0])
         else:
-            mask = np.ones(self.__longitude.size, dtype=bool)
+            mask = np.ones(points_sample.shape[0], dtype=bool)
 
-        z = self.__elevation[latitude_index, :]
-        dz = np.gradient(z, self.__longitude)
+        return CrossSection(points_sample[mask, 1], points_sample[mask, 0], r_sample[mask], z[mask], dz[mask])
 
-        return self.__longitude[mask], z[mask], dz[mask]
+
+class CrossSection:
+    """
+    Class representation of a bathymetry cross section.
+    """
+    def __init__(self, longitude, latitude, path, z, dz):
+
+        self.longitude = longitude
+        self.latitude = latitude
+        self.path = path
+        self.z = z
+        self.dz = dz
+
+    @property
+    def is_parallel(self):
+        return np.allclose(self.latitude, np.median(self.latitude))
+
+    @property
+    def is_meridian(self):
+        return np.allclose(self.longitude, np.median(self.longitude))
 
 
 class Transport(metaclass=abc.ABCMeta):
@@ -80,58 +150,88 @@ class Spectral(Transport):
     """
     Compute meridional transport from gravity fields given in spectral domain (potential coefficients).
 
+    Parameters
+    ----------
+    cross_section : CrossSection
+        cross section topography
+    seawater_density : float
+        average seawater density [kg / m^3]
+    earthrotation : float
+        average earth rotation velocity [rad / s]
     """
-    def __init__(self, topography, seawater_density=1025, earthrotation=7.29211585531e-5):
+    def __init__(self, cross_section, seawater_density=1025, earthrotation=7.29211585531e-5):
 
-        self.__topography = topography
+        self.__cross_section = cross_section
         self.__density = seawater_density
         self.__earthrotation = earthrotation
 
-    def coefficient_factors(self, latitudes, depth_bounds, max_degree, GM=3.9860044150e+14, R=6.3781363000e+06):
+    def coefficient_factors(self, depth_bounds, max_degree, GM=3.9860044150e+14, R=6.3781363000e+06):
+        """
+        Compute the coefficientwise factors for the linear operator to convert potential coefficients into transport.
 
-        latitudes = np.atleast_1d(latitudes)
-        orders = np.arange(max_degree + 1, dtype=float)[:, np.newaxis]
+        Parameters
+        ----------
+        depth_bounds : array_like(m + 1)
+            boundaries of the m depth layers in ascending order
+        max_degree : int
+            maximum spherical harmonic degree
+        GM : float
+            geocentric gravitational constant
+        R : float
+            reference radius
+        """
         obp_kernel = grates.kernel.OceanBottomPressure()
 
-        colatitude = grates.utilities.colatitude(latitudes)
-        radius = grates.utilities.geocentric_radius(latitudes)
+        colatitude = grates.utilities.colatitude(self.__cross_section.latitude)
+        radius = grates.utilities.geocentric_radius(self.__cross_section.latitude)
 
-        legendre_array = grates.utilities.legendre_functions(max_degree, colatitude)
+        coriolis_density = 2 * self.__earthrotation * np.sin(self.__cross_section.latitude) * self.__density
+        spherical_harmonics = grates.utilities.spherical_harmonics(max_degree, colatitude, self.__cross_section.longitude)
+        kn = obp_kernel.inverse_coefficients(0, max_degree, radius, colatitude) / coriolis_density[:, np.newaxis] * np.power(R / radius[:, np.newaxis], range(max_degree + 1)) * GM / R
 
-        coefficient_factor = np.empty((latitudes.size, max_degree + 1, max_degree + 1))
-        for k, latitude in enumerate(latitudes):
-            lon, z, dz = self.__topography.cross_section(latitude)
-            depth_mask = np.logical_or(z < depth_bounds[0], z > depth_bounds[1])
-            dz[depth_mask] = 0
+        for n in range(max_degree + 1):
+            rows, columns = grates.gravityfield.degree_indices(n)
+            spherical_harmonics[:, rows, columns] *= kn[:, n:n + 1]
 
-            factors_cosine = scipy.integrate.trapz(np.cos(orders * lon) * dz, lon)
-            factors_sine = scipy.integrate.trapz(np.sin(orders * lon) * dz, lon)
+        path, z, dz = self.__cross_section.path, self.__cross_section.z, self.__cross_section.dz.copy()
 
-            coefficient_factor[k, :, :] = legendre_array[k, :, :] * GM / R / (2 * self.__density * self.__earthrotation * np.sin(latitude))
+        coefficient_factors = []
+        for lower_bound, upper_bound in zip(depth_bounds[0:-1], depth_bounds[1:]):
+            outside_depth_layer = np.logical_or(z < lower_bound, z > upper_bound)
+            dz[outside_depth_layer] = 0
+            coefficient_factors.append(scipy.integrate.trapz(spherical_harmonics * dz[:, np.newaxis, np.newaxis], path, axis=0))
+            if self.__cross_section.is_parallel:
+                coefficient_factors[-1][:, 0] = 0
 
-            continuation = np.power(R / radius[k], range(max_degree + 1))
-            for n in range(1, max_degree + 1):
-                row_idx, col_idx = grates.gravityfield.degree_indices(n)
+        return coefficient_factors
 
-                coefficient_factor[k, row_idx, col_idx] *= obp_kernel.inverse_coefficient(n) * continuation[n] * \
-                    np.concatenate((factors_cosine[0:n + 1], factors_sine[1:n + 1]))
+    def compute(self, depth_bounds, data):
+        """
+        Compute transport in multiple depth bounds for a time variable gravity field.
 
-            coefficient_factor[k, :, 0] = 0
+        Parameters
+        ----------
+        depth_bounds : array_like(m + 1)
+            boundaries of the m depth layers in ascending order
+        data : grates.gravityfield.TimeSeries
+            time series of potential coefficients
 
-        return coefficient_factor
+        Returns
+        -------
+        epochs : list of datetime
+            time stamps of k computed epochs
+        transport_series : ndarray(k, m)
+            time series of transport estimates for m depth layers
+        """
+        factors = self.coefficient_factors(depth_bounds, data[0].max_degree, data[0].GM, data[0].R)
 
-    def compute(self, latitudes, depth_bounds, data):
-
-        latitudes = np.atleast_1d(latitudes)
-        factors = self.coefficient_factors(latitudes, depth_bounds, data[0].max_degree, data[0].GM, data[0].R)
-
-        transport_series = np.zeros((len(data), latitudes.size))
+        transport_series = np.zeros((len(data), len(depth_bounds) - 1))
         epochs = []
 
         for k, coeffs in enumerate(data):
             epochs.append(coeffs.epoch)
-
-            transport_series[k, :] = np.sum(factors * coeffs.anm, axis=(1, 2))
+            for l in range(len(factors)):
+                transport_series[k, l] = np.sum(factors[l] * coeffs.anm)
 
         return epochs, transport_series
 
