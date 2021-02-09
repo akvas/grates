@@ -10,5 +10,5 @@ setup(
     description='A python package to compute mass transport from satellite gravimetry',
     install_requires=['numpy', 'scipy', 'netcdf4', 'numpydoc', 'cartopy', 'matplotlib'],
     packages=['grates'],
-    package_data={'grates': ['data/ddk_normal_blocks.npz', 'data/ak135-LLNs-complete.dat.gz']}
+    package_data={'grates': ['data/ddk_normal_blocks.npz', 'data/ak135-LLNs-complete.dat.gz', 'data/csr_rl06_mascon_grid.npz']}
 )

@@ -10,6 +10,7 @@ import abc
 import grates.utilities
 import grates.kernel
 import grates.gravityfield
+import grates.data
 from scipy.special import roots_legendre
 import scipy.spatial
 
@@ -111,6 +112,20 @@ class Grid(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def voronoi_cells(self):
         pass
+
+    def is_compatible(self, other):
+        """
+        Checks whether the point distributions of two grids agree.
+
+        Returns
+        -------
+        compatible : bool
+            longitude and latitude of both grids are numerically equal
+        """
+        if self.point_count == other.point_count:
+            return np.allclose(self.longitude, other.longitude) and np.allclose(self.latitude, other.latitude)
+
+        return False
 
     def cartesian_coordinates(self):
         """
@@ -1265,6 +1280,34 @@ class GreatCircleSegment(IrregularGrid):
         grid.epoch = self.epoch
 
         return grid
+
+
+class CSRMasconGridRL06(IrregularGrid):
+    """
+    The grid on which the CSR RL06 mascons are estimated. It is based on a geodesic grid of level 37.
+    Voronoi cells are split along coast lines resulting in a total of 42108 points. The grid is given on the WGS84 ellipsoid.
+    """
+    def __init__(self):
+
+        lon, lat, area, self.__polygon_points, self.__point_to_vertex, self.__polygon_index = grates.data.csr_rl06_mascon_grid()
+
+        super(CSRMasconGridRL06, self).__init__(lon, lat, area, a=6378137.0, f=298.257223563**-1)
+
+    def voronoi_cells(self):
+        """
+        Construct the Voronoi diagram of the grid points.
+
+        Returns
+        -------
+        cells : list of SurfaceElement instances
+            Voronoi cell for each grid point as surface element instance
+        """
+        vertices = self.__polygon_points[self.__point_to_vertex]
+
+        cells = []
+        for k in range(self.__polygon_index.size - 1):
+            cells.append(PolygonSurfaceElement(vertices[self.__polygon_index[k]:self.__polygon_index[k + 1], 0], vertices[self.__polygon_index[k]:self.__polygon_index[k + 1], 1]))
+        return cells
 
 
 class Basin:
