@@ -1293,6 +1293,14 @@ class CSRMasconGridRL06(IrregularGrid):
 
         super(CSRMasconGridRL06, self).__init__(lon, lat, area, a=6378137.0, f=298.257223563**-1)
 
+    def copy(self):
+        """Deep copy of a CSRMasconGridRL06 instance."""
+        grid = CSRMasconGridRL06()
+        if self.values is not None:
+            grid.values = self.values.copy()
+        grid.epoch = self.epoch
+        return grid
+
     def voronoi_cells(self):
         """
         Construct the Voronoi diagram of the grid points.
