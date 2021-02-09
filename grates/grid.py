@@ -112,6 +112,20 @@ class Grid(metaclass=abc.ABCMeta):
     def voronoi_cells(self):
         pass
 
+    def is_compatible(self, other):
+        """
+        Checks whether the point distributions of two grids agree.
+
+        Returns
+        -------
+        compatible : bool
+            longitude and latitude of both grids are numerically equal
+        """
+        if self.point_count == other.point_count:
+            return np.allclose(self.longitude, other.longitude) and np.allclose(self.latitude, other.latitude)
+
+        return False
+
     def cartesian_coordinates(self):
         """
         Compute and return the grid points in cartesian coordinates.

@@ -435,6 +435,93 @@ class PotentialCoefficients:
         return g * self.GM / (2 * self.R**2)
 
 
+class SurfaceMassCons:
+
+    def __init__(self, point_distribution, kernel):
+        self.point_distribution = point_distribution
+        if self.point_distribution.values is None:
+            self.point_distribution.values = np.zeros(self.point_distribution.point_count)
+        self.kernel = kernel
+        self.epoch = None
+
+    def copy(self):
+        """Copy the SurfaceMassCons instance"""
+        return SurfaceMassCons(self.point_distribution.copy(), self.kernel)
+
+    def is_compatible(self, other):
+        return self.point_distribution.is_compatible(other.point_distribution)
+
+    @property
+    def values(self):
+        return self.point_distribution.values
+
+    @values.setter
+    def values(self, val):
+        self.point_distribution.values = val
+
+    def __add__(self, other):
+        """Point-wise addition of two SurfaceMassCons instances."""
+        if not isinstance(other, SurfaceMassCons):
+            raise TypeError("unsupported operand type(s) for +: '" + str(type(self)) + "' and '" + str(type(other)) + "'")
+        if not self.is_compatible(other):
+            raise ValueError("point distributions of '" + str(type(self)) + "' instances are not compatible")
+
+        result = self.copy()
+        result.values += other.values
+
+        return result
+
+    def __sub__(self, other):
+        """Point-wise subtraction of two SurfaceMassCons instances."""
+        if not isinstance(other, SurfaceMassCons):
+            raise TypeError("unsupported operand type(s) for -: '" + str(type(self)) + "' and '" + str(type(other)) + "'")
+        if not self.is_compatible(other):
+            raise ValueError("point distributions of '" + str(type(self)) + "' instances are not compatible")
+
+        result = self.copy()
+        result.values -= other.values
+
+        return result
+
+    def __mul__(self, other):
+        """Multiplication of a SurfaceMassCons instance with a numeric scalar."""
+        if not isinstance(other, (int, float)):
+            raise TypeError("unsupported operand type(s) for *: '" + str(type(self)) + "' and '" + str(type(other)) + "'")
+
+        result = self.copy()
+        result.values *= other
+
+        return result
+
+    def __truediv__(self, other):
+        """Division of a SurfaceMassCons instance by a numeric scalar."""
+        if not isinstance(other, (int, float)):
+            raise TypeError("unsupported operand type(s) for /: '" + str(type(self)) + "' and '" + str(type(other)) + "'")
+
+        return self * (1.0 / other)
+
+    def to_potential_coefficients(self, min_degree, max_degree, GM=3.9860044150e+14, R=6.3781363000e+06):
+        """
+        Perform spherical harmonic analysis of the mascon values.
+
+        Parameters
+        ----------
+        min_degree : int
+            minimum degree of the analysis
+        max_degree : int
+            maximum degree of the analysis
+        GM : float
+            geocentric gravitational constant
+        R : reference radius
+
+        Returns
+        -------
+        potential_coefficients : PotentialCoefficients
+            result of the spherical harmonic analysis as potential coefficients
+        """
+        return self.point_distribution.to_potential_coefficients(min_degree, max_degree, self.kernel, GM, round)
+
+
 class TimeVariableGravityField:
     """
     Compose a time variable gravity field from multiple constituents, for example trend, annual cycle and an irregular time series.
