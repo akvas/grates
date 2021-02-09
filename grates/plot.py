@@ -81,6 +81,41 @@ def __cell2patch(cell):
         raise ValueError('no known conversion for type ' + str(type(cell)) + '.')
 
 
+def surface_tiles(grid, ax=None, vmin=None, vmax=None, **kwargs):
+    """
+    Make a 2D plot of the surface tiles (Voronoi cells) of a grid.
+
+    Parameters
+    ----------
+    grid : grates.grid.Grid
+        point distribution
+    ax : matplotlib.axes.Axes
+        axes into which to plot, if None (default) the current axes are used
+    vmin : float
+        lower colorbar limit
+    vmax : float
+        upper colorbar limit
+    **kwargs
+        forwarded to PatchCollection
+
+    Returns
+    -------
+    p : matplotlib.collections.PatchCollection
+        handle of the PatchCollection
+
+    """
+    patches = [__cell2patch(cell) for cell in grid.voronoi_cells()]
+
+    p = matplotlib.collections.PatchCollection(patches, transform=ctp.crs.PlateCarree(), **kwargs)
+    if ax is None:
+        ax = plt.gca()
+    if grid.values is not None:
+        p.set_array(grid.values)
+    ax.add_collection(p)
+    p.set_clim(vmin, vmax)
+    return p
+
+
 def voronoi_bin(lon, lat, C=None, ax=None, grid=grates.grid.GeodesicGrid(25), mincnt=0, reduce_C_function=np.mean,
                 vmin=None, vmax=None, **kwargs):
     """
