@@ -115,3 +115,26 @@ def ddk_normal_blocks():
             blocks.append(f['order{0:d}_sin'.format(m)])
 
         return blocks
+
+
+def csr_rl06_mascon_grid():
+    """
+    Return all necessary data to construct the CSR RL06 mascon grid.
+
+    Returns
+    -------
+    longitude : ndarray(m,)
+        longitude of polygon centroids in radians
+    latitude : ndarray(m,)
+        latitude of polygon centroid in radians
+    area : ndarray(m,)
+        polygon area
+    polygon_points : ndarray(k, 2)
+        longitude and latitude of polygon vertices
+    point_to_vertex : ndarray(l,)
+        index vector to construct polygons from point list
+    polygon_index : ndarray(m + 1,)
+        beginning and end of each polygon in the reconstructed point list
+    """
+    with np.load(pkg_resources.resource_filename('grates', 'data/csr_rl06_mascon_grid.npz')) as f:
+        return f['longitude'], f['latitude'], f['area'], f['polygon_points'], f['point_to_vertex'], f['polygon_index']
