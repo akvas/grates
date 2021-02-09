@@ -135,6 +135,8 @@ def csr_rl06_mascon_grid():
         index vector to construct polygons from point list
     polygon_index : ndarray(m + 1,)
         beginning and end of each polygon in the reconstructed point list
+    ocean_mask : ndarray(m,)
+        boolean array which is true for ocean tiles
     """
     with np.load(pkg_resources.resource_filename('grates', 'data/csr_rl06_mascon_grid.npz')) as f:
-        return f['longitude'], f['latitude'], f['area'], f['polygon_points'], f['point_to_vertex'], f['polygon_index']
+        return f['longitude'], f['latitude'], f['area'], f['polygon_points'], f['point_to_vertex'], f['polygon_index'], f['ocean_mask']

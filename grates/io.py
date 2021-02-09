@@ -10,7 +10,11 @@ import tarfile
 import abc
 import gzip
 import numpy as np
-from grates.gravityfield import PotentialCoefficients, TimeSeries
+from grates.gravityfield import PotentialCoefficients, TimeSeries, SurfaceMassCons
+from grates.grid import CSRMasconGridRL06, RegularGrid
+from grates.kernel import WaterHeight
+import scipy.spatial
+import netCDF4
 
 
 def __parse_gfc_entry(line):
@@ -534,3 +538,29 @@ def loadsinexnormals(file_name):
         return N, n, lPl, obs_count
     else:
         raise ValueError('SINEX file does not conform to storage schemes 6b or 6c for normal equations.')
+
+
+def loadcsr06mascons(file_name):
+
+    output_grid = CSRMasconGridRL06()
+
+    dataset = netCDF4.Dataset(file_name)
+    longitude = np.deg2rad(dataset['lon'])
+    latitude = np.deg2rad(dataset['lat'])
+    times = np.asarray(dataset['time'])
+
+    base_grid = RegularGrid(longitude, latitude, a=output_grid.semimajor_axis, f=output_grid.flattening)
+
+    tree = scipy.spatial.cKDTree(base_grid.cartesian_coordinates())
+    _, index = tree.query(output_grid.cartesian_coordinates(), k=1)
+
+    data = []
+    for k in range(times.size):
+        values = dataset['lwe_thickness'][k, :, :].flatten() * 1e-2
+
+        mascons = SurfaceMassCons(output_grid.copy(), kernel=WaterHeight)
+        mascons.values = np.array(values[index], dtype=float)
+        mascons.epoch = dt.datetime(2002, 1, 1) + dt.timedelta(days=float(times[k]))
+        data.append(mascons)
+
+    return TimeSeries(data)
