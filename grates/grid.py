@@ -1285,7 +1285,7 @@ class GreatCircleSegment(IrregularGrid):
 class CSRMasconGridRL06(IrregularGrid):
     """
     The grid on which the CSR RL06 mascons are estimated. It is based on a geodesic grid of level 37.
-    Voronoi cells are split along coast lines resulting in a total of 42108 points. The grid is given on the WGS84 ellipsoid.
+    Voronoi cells are split along coast lines resulting in a total of 42107 points. The grid is given on the WGS84 ellipsoid.
     """
     def __init__(self):
 
