@@ -1289,7 +1289,7 @@ class CSRMasconGridRL06(IrregularGrid):
     """
     def __init__(self):
 
-        lon, lat, area, self.__polygon_points, self.__point_to_vertex, self.__polygon_index = grates.data.csr_rl06_mascon_grid()
+        lon, lat, area, self.__polygon_points, self.__point_to_vertex, self.__polygon_index, self.ocean_mask = grates.data.csr_rl06_mascon_grid()
 
         super(CSRMasconGridRL06, self).__init__(lon, lat, area, a=6378137.0, f=298.257223563**-1)
 
