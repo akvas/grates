@@ -113,6 +113,11 @@ def loadesm(file_name, min_degree=0, max_degree=None):
         return coefficients starting from min_degree
     max_degree : int
         return coefficients up to and including max_degree
+
+    Returns
+    -------
+    time_series : grates.gravityfield.TimeSeries
+        TimeSeries instance
     """
     tar = tarfile.open(file_name, 'r:gz')
     data = []
@@ -541,7 +546,20 @@ def loadsinexnormals(file_name):
 
 
 def loadcsr06mascons(file_name):
+    """
+    Read CSR RL06 mascon grid from a netCDF file. The mascon data is mapped to the original estimation grid, rather than
+    using the 0.25 grid the mascons are provided on.
 
+    Parameters
+    ----------
+    file_name : str
+        netCDF file name
+
+    Returns
+    -------
+    time_series : grates.gravityfield.TimeSeries
+        TimeSeries instance
+    """
     output_grid = CSRMasconGridRL06()
 
     dataset = netCDF4.Dataset(file_name)
