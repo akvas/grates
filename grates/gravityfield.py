@@ -435,7 +435,7 @@ class PotentialCoefficients:
         return g * self.GM / (2 * self.R**2)
 
 
-class SurfaceMassCons:
+class SurfaceMasCons:
 
     def __init__(self, point_distribution, kernel):
         self.point_distribution = point_distribution
@@ -445,8 +445,10 @@ class SurfaceMassCons:
         self.epoch = None
 
     def copy(self):
-        """Copy the SurfaceMassCons instance"""
-        return SurfaceMassCons(self.point_distribution.copy(), self.kernel)
+        """Copy the SurfaceMasCons instance"""
+        other = SurfaceMasCons(self.point_distribution.copy(), self.kernel)
+        other.epoch = self.epoch
+        return other
 
     def is_compatible(self, other):
         return self.point_distribution.is_compatible(other.point_distribution)
@@ -460,8 +462,8 @@ class SurfaceMassCons:
         self.point_distribution.values = val
 
     def __add__(self, other):
-        """Point-wise addition of two SurfaceMassCons instances."""
-        if not isinstance(other, SurfaceMassCons):
+        """Point-wise addition of two SurfaceMasCons instances."""
+        if not isinstance(other, SurfaceMasCons):
             raise TypeError("unsupported operand type(s) for +: '" + str(type(self)) + "' and '" + str(type(other)) + "'")
         if not self.is_compatible(other):
             raise ValueError("point distributions of '" + str(type(self)) + "' instances are not compatible")
@@ -472,8 +474,8 @@ class SurfaceMassCons:
         return result
 
     def __sub__(self, other):
-        """Point-wise subtraction of two SurfaceMassCons instances."""
-        if not isinstance(other, SurfaceMassCons):
+        """Point-wise subtraction of two SurfaceMasCons instances."""
+        if not isinstance(other, SurfaceMasCons):
             raise TypeError("unsupported operand type(s) for -: '" + str(type(self)) + "' and '" + str(type(other)) + "'")
         if not self.is_compatible(other):
             raise ValueError("point distributions of '" + str(type(self)) + "' instances are not compatible")
@@ -484,7 +486,7 @@ class SurfaceMassCons:
         return result
 
     def __mul__(self, other):
-        """Multiplication of a SurfaceMassCons instance with a numeric scalar."""
+        """Multiplication of a SurfaceMasCons instance with a numeric scalar."""
         if not isinstance(other, (int, float)):
             raise TypeError("unsupported operand type(s) for *: '" + str(type(self)) + "' and '" + str(type(other)) + "'")
 
@@ -494,7 +496,7 @@ class SurfaceMassCons:
         return result
 
     def __truediv__(self, other):
-        """Division of a SurfaceMassCons instance by a numeric scalar."""
+        """Division of a SurfaceMasCons instance by a numeric scalar."""
         if not isinstance(other, (int, float)):
             raise TypeError("unsupported operand type(s) for /: '" + str(type(self)) + "' and '" + str(type(other)) + "'")
 
@@ -520,6 +522,62 @@ class SurfaceMassCons:
             result of the spherical harmonic analysis as potential coefficients
         """
         return self.point_distribution.to_potential_coefficients(min_degree, max_degree, self.kernel, GM, round)
+
+
+class AnisotropicBasisFunctions:
+    """
+    Gravity field represented by anisotropic kernel basis functions.
+    """
+    def __init__(self, point_distribution, K, min_degree, max_degree, GM=3.9860044150e+14, R=6.3781363000e+06):
+
+        self.__K = K.copy()
+        self.point_distribution = point_distribution
+        self.__min_degree = min_degree
+        self.__max_degree = max_degree
+        self.GM = GM
+        self.R = R
+        self.epoch = None
+
+    @property
+    def values(self):
+        return self.point_distribution.values
+
+    @values.setter
+    def values(self, val):
+        self.point_distribution.values = val
+
+    def is_compatible(self, other):
+        return self.point_distribution.is_compatible(other.point_distribution)
+
+    def to_grid(self, grid=grates.grid.GeographicGrid(), kernel='ewh'):
+
+        kernel_function = grates.kernel.get_kernel(kernel)
+
+        radius = grates.utilities.geocentric_radius(grid.parallels, grid.semimajor_axis, grid.flattening)
+        colatitude = grates.utilities.colatitude(grid.parallels, grid.semimajor_axis, grid.flattening)
+        kn = kernel_function.inverse_coefficients(0, self.__max_degree, radius, colatitude)
+
+        continuation = np.power(self.R / radius[:, np.newaxis], np.arange(0, self.__max_degree + 1, dtype=float) + 1) * kn
+
+        Pnm = grates.utilities.legendre_functions(self.__max_degree, colatitude)
+        for n in range(self.__min_degree, self.__max_degree + 1):
+            row, column = degree_indices(n)
+            Pnm[:, row, column] *= continuation[:, n:n + 1]
+
+        block_index = np.concatenate((np.arange(0, self.point_distribution.point_count, 512), np.atleast_1d(self.point_distribution.point_count)))
+
+        output_values = np.zeros((grid.parallels.size, grid.meridians.size))
+        for idx_start, idx_end in zip(block_index[0:-1], block_index[1:]):
+            c = grates.utilities.colatitude(self.point_distribution.latitude[idx_start:idx_end], self.point_distribution.semimajor_axis, self.point_distribution.flattening)
+            Ynm = grates.utilities.ravel_coefficients(grates.utilities.spherical_harmonics(self.__max_degree, c, self.point_distribution.longitude[idx_start:idx_end]), self.__min_degree, self.__max_degree).T
+            K_tmp = self.__K @ (Ynm @ self.values[idx_start:idx_end])
+            for k in range(grid.meridians.size):
+                cs = grates.utilities.trigonometric_functions(self.__max_degree, grid.meridians[k])
+                output_values[:, k] += grates.utilities.ravel_coefficients(Pnm * cs, self.__min_degree, self.__max_degree) @ K_tmp * self.GM / self.R
+
+        output_grid = grid.copy()
+        output_grid.value_array = output_values
+        return output_grid
 
 
 class TimeVariableGravityField:
