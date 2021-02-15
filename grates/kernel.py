@@ -2,7 +2,7 @@
 # See LICENSE for copyright/license details.
 
 """
-Isotropic harmonic integral kernels.
+Harmonic integral kernels.
 """
 
 import numpy as np
@@ -21,7 +21,8 @@ def get_kernel(kernel_name):
     kernel_name : string
         name of kernel, currently implemented: water height ('EWH', 'water_height'),
         ocean bottom pressure ('OBP', 'ocean_bottom_pressure'), potential ('potential'),
-        geoid height ('geoid_height'), surface density ('surface_density')
+        geoid height ('geoid', 'geoid_height'), surface density ('surface_density'),
+        gravity anomaly, ('anomaly', 'gravity_anomaly')
 
     Returns
     -------
@@ -58,9 +59,9 @@ def get_kernel(kernel_name):
     return ker
 
 
-class Kernel(metaclass=abc.ABCMeta):
+class IsotropicKernel(metaclass=abc.ABCMeta):
     """
-    Base interface for band-limited spherical harmonic kernels.
+    Base interface for band-limited isotropic harmonic kernels.
 
     Subclasses must implement a method `_coefficients` which depends on min_degree, max_degree, radius and
     co-latitude and returns kernel coefficients.
@@ -339,7 +340,7 @@ class Kernel(metaclass=abc.ABCMeta):
         return psi, mtf
 
 
-class WaterHeight(Kernel):
+class WaterHeight(IsotropicKernel):
     """
     Implementation of the water height kernel. Applied to a sequence of potential coefficients, the result is
     equivalent water height in meters when propagated to space domain.
@@ -360,7 +361,7 @@ class WaterHeight(Kernel):
         return (kn[:, np.newaxis] * r).T
 
 
-class OceanBottomPressure(Kernel):
+class OceanBottomPressure(IsotropicKernel):
     """
     Implementation of the ocean bottom pressure kernel. Applied to a sequence of potential coefficients, the result
     is ocean bottom pressure in Pascal when propagated to space domain.
@@ -375,7 +376,7 @@ class OceanBottomPressure(Kernel):
         return (kn[:, np.newaxis] * (r / grates.gravityfield.GRS80.normal_gravity(r, colat))).T
 
 
-class SurfaceDensity(Kernel):
+class SurfaceDensity(IsotropicKernel):
     """
     Implementation of the surface density kernel.
     """
@@ -389,7 +390,7 @@ class SurfaceDensity(Kernel):
         return (kn[:, np.newaxis] * r).T
 
 
-class Potential(Kernel):
+class Potential(IsotropicKernel):
     """
     Implementation of the Poisson kernel (disturbing potential).
     """
@@ -403,7 +404,7 @@ class Potential(Kernel):
         return np.ones((count, max_degree + 1 - min_degree))
 
 
-class GravityAnomaly(Kernel):
+class GravityAnomaly(IsotropicKernel):
     """
     """
     def __init__(self):
@@ -415,7 +416,7 @@ class GravityAnomaly(Kernel):
         return (kn[:, np.newaxis] * r).T
 
 
-class Gauss(Kernel):
+class Gauss(IsotropicKernel):
     """
     Implementation of the Gauss kernel.
     """
@@ -460,7 +461,7 @@ class Gauss(Kernel):
         return np.tile(self.__wn[min_degree:max_degree + 1], (count, 1))
 
 
-class GeoidHeight(Kernel):
+class GeoidHeight(IsotropicKernel):
     """
     Implementation of the geoid height kernel (disturbing potential divided by normal gravity).
     """
@@ -472,7 +473,7 @@ class GeoidHeight(Kernel):
         return np.tile(grates.gravityfield.GRS80.normal_gravity(r, colat)[:, np.newaxis], (1, max_degree + 1 - min_degree))
 
 
-class UpwardContinuation(Kernel):
+class UpwardContinuation(IsotropicKernel):
     """
     Implementation of the upward continuation kernel.
 
