@@ -826,6 +826,27 @@ class BlockMatrix:
                         self.__set_block(i, j)
                         self.__data[i, j] += self.__data[i, k] @ self.__data[j, k].T
 
+    @property
+    def is_nonzero(self, row, column):
+        """Returns whether block (row, column) is non-zero."""
+        return self.__is_nonzero[row, column]
+
+    def _scale(self, value):
+        """Scale whole matrix with a factor."""
+        for row in range(self.shape[0]):
+            for column in range(self.shape[1]):
+                if self.__is_nonzero[row, column]:
+                    self.__data[row, column] *= value
+
+    def _axpy(self, factor, other):
+        """Perform self += factor * other."""
+        for row in range(self.shape[0]):
+            for column in range(self.shape[1]):
+                if self.__is_nonzero[row, column] and other.__is_nonzero[row, column]:
+                    self.__data[row, column] += other[row, column] * factor
+                elif not self.__is_nonzero[row, column] and other.__is_nonzero[row, column]:
+                    self[row, column] = other[row, column] * factor
+
 
 class NormalEquations:
     """
