@@ -423,6 +423,16 @@ class BlockMatrix:
         self.__data = np.empty(self.shape, dtype=np.ndarray)
         self.__is_nonzero = np.full(self.shape, False, dtype=bool)
 
+    def copy(self):
+        """Deep copy of BlockMatrix"""
+        output = BlockMatrix(self.__row_index, self.__column_index)
+        for i in range(self.shape[0]):
+            for j in range(self.shape[1]):
+                if self.__is_nonzero[i, j]:
+                    output[i, j] = self.__data[i, j]
+
+        return output
+
     @staticmethod
     def from_array(array, row_index, column_index):
         """
