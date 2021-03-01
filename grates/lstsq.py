@@ -476,12 +476,11 @@ class BlockMatrix:
         array : ndarray(m, n)
             ndarray representation of the BlockMatrix
         """
-        array = np.empty((self.__row_index[-1], self.__column_index[-1]))
+        array = np.zeros((self.__row_index[-1], self.__column_index[-1]))
         for row in range(self.shape[0]):
             for column in range(self.shape[1]):
-                array[self.__row_slice(row), self.__column_slice(column)] = \
-                    self.__data[row, column] if self.__is_nonzero[row, column] else \
-                    np.zeros(self.__block_shape(row, column))
+                if self.__is_nonzero[row, column]:
+                    array[self.__row_slice(row), self.__column_slice(column)] = self.__data[row, column]
 
         return array
 
