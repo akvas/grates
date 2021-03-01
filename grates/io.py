@@ -10,7 +10,7 @@ import tarfile
 import abc
 import gzip
 import numpy as np
-from grates.gravityfield import PotentialCoefficients, TimeSeries, SurfaceMassCons
+from grates.gravityfield import PotentialCoefficients, TimeSeries, SurfaceMasCons
 from grates.grid import CSRMasconGridRL06, RegularGrid
 from grates.kernel import WaterHeight
 import scipy.spatial
@@ -576,7 +576,7 @@ def loadcsr06mascons(file_name):
     for k in range(times.size):
         values = dataset['lwe_thickness'][k, :, :].flatten() * 1e-2
 
-        mascons = SurfaceMassCons(output_grid.copy(), kernel=WaterHeight)
+        mascons = SurfaceMasCons(output_grid.copy(), kernel=WaterHeight)
         mascons.values = np.array(values[index], dtype=float)
         mascons.epoch = dt.datetime(2002, 1, 1) + dt.timedelta(days=float(times[k]))
         data.append(mascons)
