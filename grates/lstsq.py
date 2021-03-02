@@ -1079,3 +1079,62 @@ class TikhonovRegularization(NormalEquations):
         super(TikhonovRegularization, self).__init__(matrix, right_hand_side, lPl, right_hand_side.size)
 
 
+def accumulate_normals(normal_equations, variance_factors):
+    """
+    Accumulate multiple normal equations with given variance factors.
+
+    Parameters
+    ----------
+    normal_equations : list of NormalEquation instances
+        list or tuple of NormalEquation objects
+    variance_factors : array_like
+        container of corresponding variance factors
+
+    Returns
+    -------
+    combined_normals : NormalEquation
+        accumulated normal equation system
+    """
+    output_matrix = normal_equations[0].matrix.copy()
+    output_matrix._scale(1 / variance_factors[0])
+    output_rhs = normal_equations[0].right_hand_side.copy() / variance_factors[0]
+    lPl = normal_equations[0].observation_square_sum / variance_factors[0]
+    obs_count = normal_equations[0].observation_count
+
+    for k in range(1, len(normal_equations)):
+        output_matrix._axpy(1 / variance_factors[k], normal_equations[k].matrix)
+        output_rhs += normal_equations[k].right_hand_side.copy() / variance_factors[k]
+        lPl += normal_equations[k].observation_square_sum / variance_factors[k]
+        obs_count += normal_equations[k].observation_count
+
+    return NormalEquations(output_matrix, output_rhs, lPl, obs_count)
+
+
+def compute_variance_factors(normal_equations, combined_normals, solution, variance_factors):
+    """
+    Compute the variance factors for a list of normal equations given the combined normals, solution and variance factors.
+
+    Parameters
+    ----------
+    normal_equations : list of NormalEquation instances
+        list or tuple of NormalEquation objects
+    combined_normals : NormalEquation
+        accumulated normal equation system
+    solution : ndarray
+        2d ndarray containing the solution vector
+    variance_factors : array_like
+        container of prior variance factors
+
+    Returns
+    -------
+    estimated_variance_factors : ndarray
+        ndarray containing the estimated variance factors
+    """
+    vc = []
+    for normals, sigma2 in zip(normal_equations, variance_factors):
+
+        ePe = normals.residual_square_sum(solution)
+        r = normals.redundancy(combined_normals, sigma2)
+        vc.append(ePe / r)
+
+    return np.array(vc)
