@@ -6,13 +6,14 @@ What is grates?
 grates is a free Open Source software package for analyzing time variable gravity field solutions.
 It is tailored for data sets of the GRACE and GRACE-FO missions.
 
-The features of l3py are:
+The features of grates are:
 
  * File I/O for common data formats (GFC files, GRACE-FO SDS Technical Notes, SINEX)
  * Basic arithmetic operations for sets of potential coefficients
  * Spatial filtering of gravity field solutions
  * Meridional transport from ocean bottom pressure fields
  * Kalman smoother for the determination of short-term gravity field variations
+ * Isotropic and anisotropic harmonic kernels
 
  grates is currently in early development with frequent interface changes.
 
