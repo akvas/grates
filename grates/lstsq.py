@@ -1050,3 +1050,32 @@ class NormalEquations:
         return self.matrix.to_array(), self.right_hand_side, self.observation_square_sum, self.observation_count
 
 
+class TikhonovRegularization(NormalEquations):
+    """
+    Class representation of the normal equation system corresponding to a Thikonov regularization.
+
+    Parameters
+    ----------
+    regularization_vector : ndarray
+        1d ndarray containing the diagonal of the regularization matrix
+    block_index : array_like
+        block index for construction of the normal equation matrix
+    right_hand_side : ndarray or None
+        right hand side (bias vector) of the normal equation system (if None, a zero vector is generated)
+    """
+    def __init__(self, regularization_vector, block_index, right_hand_side=None):
+
+        if right_hand_side is None:
+            right_hand_side = np.zeros((block_index[-1], 1))
+            lPl = 0
+        else:
+            lPl = np.sum(right_hand_side**2 * regularization_vector[:, np.newaxis])
+            right_hand_side = right_hand_side * regularization_vector[:, np.newaxis]
+
+        matrix = BlockMatrix(block_index, block_index)
+        for i in range(matrix.shape[0]):
+            matrix[i, i] = np.diag(regularization_vector[block_index[i]:block_index[i + 1]])
+
+        super(TikhonovRegularization, self).__init__(matrix, right_hand_side, lPl, right_hand_side.size)
+
+
