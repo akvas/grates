@@ -423,6 +423,45 @@ class BlockMatrix:
         self.__data = np.empty(self.shape, dtype=np.ndarray)
         self.__is_nonzero = np.full(self.shape, False, dtype=bool)
 
+    def copy(self):
+        """Deep copy of BlockMatrix"""
+        output = BlockMatrix(self.__row_index, self.__column_index)
+        for i in range(self.shape[0]):
+            for j in range(self.shape[1]):
+                if self.__is_nonzero[i, j]:
+                    output[i, j] = self.__data[i, j]
+
+        return output
+
+    @staticmethod
+    def compute_block_index(array_shape, block_size):
+        """
+        Compute the row and column block index given an array shape and block size.
+
+        Parameters
+        ----------
+        array_shape : tuple
+            2-tuple containing row and column count
+        block_size : int
+            target block size
+
+        Returns
+        -------
+        row_index : ndarray
+            index bounds for block rows
+        column_index  : ndarray
+            index bounds for block columns
+        """
+        row_index = [0]
+        while row_index[-1] < array_shape[0]:
+            row_index.append(min(array_shape[0], row_index[-1] + block_size))
+
+        column_index = [0]
+        while column_index[-1] < array_shape[1]:
+            column_index.append(min(array_shape[1], column_index[-1] + block_size))
+
+        return np.array(row_index), np.array(column_index)
+
     @staticmethod
     def from_array(array, row_index, column_index):
         """
@@ -466,12 +505,11 @@ class BlockMatrix:
         array : ndarray(m, n)
             ndarray representation of the BlockMatrix
         """
-        array = np.empty((self.__row_index[-1], self.__column_index[-1]))
+        array = np.zeros((self.__row_index[-1], self.__column_index[-1]))
         for row in range(self.shape[0]):
             for column in range(self.shape[1]):
-                array[self.__row_slice(row), self.__column_slice(column)] = \
-                    self.__data[row, column] if self.__is_nonzero[row, column] else \
-                    np.zeros(self.__block_shape(row, column))
+                if self.__is_nonzero[row, column]:
+                    array[self.__row_slice(row), self.__column_slice(column)] = self.__data[row, column]
 
         return array
 
@@ -711,6 +749,32 @@ class BlockMatrix:
 
         return v
 
+    def multiply_symmetric(self, b):
+        """
+        Compute the matrix product :math:`\mathbf{v} = \mathbf{N} \cdot \mathbf{b}`. The block matrix is assumed to be symmetric.
+        Only the upper triangle is accessed.
+
+        Parameters
+        ----------
+        b : ndarray(m, n)
+            multiplicator as 2D ndarray
+
+        Returns
+        -------
+        v : ndarray(m, n)
+            multiplication result as 2D ndarray.
+        """
+        v = np.zeros(b.shape)
+        for i in range(self.shape[0]):
+            if self.__is_nonzero[i, i]:
+                v[self.__row_slice(i)] += self.__data[i, i] @ b[self.__row_slice(i)]
+            for j in range(i + 1, self.shape[1]):
+                if self.__is_nonzero[i, j]:
+                    v[self.__row_slice(i)] += self.__data[i, j] @ b[self.__row_slice(j)]
+                    v[self.__row_slice(j)] += self.__data[i, j].T @ b[self.__row_slice(i)]
+
+        return v
+
     def solve_triangular(self, b, transpose=False):
         """
        Solve the system of equations :math:`\mathbf{W} \cdot \mathbf{x} = \mathbf{b}` or
@@ -817,6 +881,27 @@ class BlockMatrix:
                         self.__set_block(i, j)
                         self.__data[i, j] += self.__data[i, k] @ self.__data[j, k].T
 
+    @property
+    def is_nonzero(self, row, column):
+        """Returns whether block (row, column) is non-zero."""
+        return self.__is_nonzero[row, column]
+
+    def _scale(self, value):
+        """Scale whole matrix with a factor."""
+        for row in range(self.shape[0]):
+            for column in range(self.shape[1]):
+                if self.__is_nonzero[row, column]:
+                    self.__data[row, column] *= value
+
+    def _axpy(self, factor, other):
+        """Perform self += factor * other."""
+        for row in range(self.shape[0]):
+            for column in range(self.shape[1]):
+                if self.__is_nonzero[row, column] and other.__is_nonzero[row, column]:
+                    self.__data[row, column] += other[row, column] * factor
+                elif not self.__is_nonzero[row, column] and other.__is_nonzero[row, column]:
+                    self[row, column] = other[row, column] * factor
+
 
 class NormalEquations:
     """
@@ -866,9 +951,49 @@ class NormalEquations:
         self.__cholesky()
 
         h = self.matrix.solve_triangular(self.right_hand_side, transpose=True)
-        x = self.matrix.solve_triangular(h)
+        xi = np.random.randint(0, 2, size=(h.shape[0], 100))
+        xi[xi == 0] = -1
+        x = self.matrix.solve_triangular(np.hstack((h, xi)))
+        self.monte_carlo_vectors = x[:, 1:]
 
-        return x
+        return x[:, 0:1]
+
+    def redundancy(self, combined_normals, variance_factor):
+        """
+        Compute the redudancy given a combined system of normal equations and the variance factor.
+
+        Parameters
+        ----------
+        combined_normals : NormalEquation
+            accumulated normal equation system
+        variance_factor : float
+            corresponding variance factor
+
+        Returns
+        -------
+        r : float
+            redudancy of the normal equation
+        """
+        estimated_trace = np.trace(combined_normals.monte_carlo_vectors.T @ (self.matrix.multiply_symmetric(combined_normals.monte_carlo_vectors))) / combined_normals.monte_carlo_vectors.shape[1]
+
+        return (self.observation_count - estimated_trace / variance_factor).squeeze()
+
+    def residual_square_sum(self, solution):
+        """
+        Compute the residual square sum for a given solution.
+
+        Parameters
+        ----------
+        solution : ndarray
+            ndarray containing the solution vector
+
+        Returns
+        -------
+        ePe : float
+            residual square sum
+        """
+        Nx = self.matrix.multiply_symmetric(solution)
+        return (self.observation_square_sum - 2 * np.sum(self.right_hand_side * solution) + np.sum(solution * Nx)).squeeze()
 
     def posterior_sigma(self, solution):
         """
@@ -906,3 +1031,110 @@ class NormalEquations:
             self.matrix.inverse()
 
         self.status = 'covariance_matrix'
+
+    def to_array(self):
+        """
+        Return normal equation system as ndarrays. Sparsity is not taken into account.
+
+        Returns
+        -------
+        N : ndarray
+            normal equation coefficient matrix
+        n : ndarray
+            right hand side
+        observation_square_sum : float
+            observation square sum
+        observation_count : int
+            observation count
+        """
+        return self.matrix.to_array(), self.right_hand_side, self.observation_square_sum, self.observation_count
+
+
+class TikhonovRegularization(NormalEquations):
+    """
+    Class representation of the normal equation system corresponding to a Thikonov regularization.
+
+    Parameters
+    ----------
+    regularization_vector : ndarray
+        1d ndarray containing the diagonal of the regularization matrix
+    block_index : array_like
+        block index for construction of the normal equation matrix
+    right_hand_side : ndarray or None
+        right hand side (bias vector) of the normal equation system (if None, a zero vector is generated)
+    """
+    def __init__(self, regularization_vector, block_index, right_hand_side=None):
+
+        if right_hand_side is None:
+            right_hand_side = np.zeros((block_index[-1], 1))
+            lPl = 0
+        else:
+            lPl = np.sum(right_hand_side**2 * regularization_vector[:, np.newaxis])
+            right_hand_side = right_hand_side * regularization_vector[:, np.newaxis]
+
+        matrix = BlockMatrix(block_index, block_index)
+        for i in range(matrix.shape[0]):
+            matrix[i, i] = np.diag(regularization_vector[block_index[i]:block_index[i + 1]])
+
+        super(TikhonovRegularization, self).__init__(matrix, right_hand_side, lPl, right_hand_side.size)
+
+
+def accumulate_normals(normal_equations, variance_factors):
+    """
+    Accumulate multiple normal equations with given variance factors.
+
+    Parameters
+    ----------
+    normal_equations : list of NormalEquation instances
+        list or tuple of NormalEquation objects
+    variance_factors : array_like
+        container of corresponding variance factors
+
+    Returns
+    -------
+    combined_normals : NormalEquation
+        accumulated normal equation system
+    """
+    output_matrix = normal_equations[0].matrix.copy()
+    output_matrix._scale(1 / variance_factors[0])
+    output_rhs = normal_equations[0].right_hand_side.copy() / variance_factors[0]
+    lPl = normal_equations[0].observation_square_sum / variance_factors[0]
+    obs_count = normal_equations[0].observation_count
+
+    for k in range(1, len(normal_equations)):
+        output_matrix._axpy(1 / variance_factors[k], normal_equations[k].matrix)
+        output_rhs += normal_equations[k].right_hand_side.copy() / variance_factors[k]
+        lPl += normal_equations[k].observation_square_sum / variance_factors[k]
+        obs_count += normal_equations[k].observation_count
+
+    return NormalEquations(output_matrix, output_rhs, lPl, obs_count)
+
+
+def compute_variance_factors(normal_equations, combined_normals, solution, variance_factors):
+    """
+    Compute the variance factors for a list of normal equations given the combined normals, solution and variance factors.
+
+    Parameters
+    ----------
+    normal_equations : list of NormalEquation instances
+        list or tuple of NormalEquation objects
+    combined_normals : NormalEquation
+        accumulated normal equation system
+    solution : ndarray
+        2d ndarray containing the solution vector
+    variance_factors : array_like
+        container of prior variance factors
+
+    Returns
+    -------
+    estimated_variance_factors : ndarray
+        ndarray containing the estimated variance factors
+    """
+    vc = []
+    for normals, sigma2 in zip(normal_equations, variance_factors):
+
+        ePe = normals.residual_square_sum(solution)
+        r = normals.redundancy(combined_normals, sigma2)
+        vc.append(ePe / r)
+
+    return np.array(vc)

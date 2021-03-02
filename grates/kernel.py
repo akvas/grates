@@ -2,7 +2,7 @@
 # See LICENSE for copyright/license details.
 
 """
-Isotropic harmonic integral kernels.
+Harmonic integral kernels.
 """
 
 import numpy as np
@@ -21,7 +21,8 @@ def get_kernel(kernel_name):
     kernel_name : string
         name of kernel, currently implemented: water height ('EWH', 'water_height'),
         ocean bottom pressure ('OBP', 'ocean_bottom_pressure'), potential ('potential'),
-        geoid height ('geoid_height'), surface density ('surface_density')
+        geoid height ('geoid', 'geoid_height'), surface density ('surface_density'),
+        gravity anomaly, ('anomaly', 'gravity_anomaly')
 
     Returns
     -------
@@ -58,9 +59,9 @@ def get_kernel(kernel_name):
     return ker
 
 
-class Kernel(metaclass=abc.ABCMeta):
+class IsotropicKernel(metaclass=abc.ABCMeta):
     """
-    Base interface for band-limited spherical harmonic kernels.
+    Base interface for band-limited isotropic harmonic kernels.
 
     Subclasses must implement a method `_coefficients` which depends on min_degree, max_degree, radius and
     co-latitude and returns kernel coefficients.
@@ -339,7 +340,7 @@ class Kernel(metaclass=abc.ABCMeta):
         return psi, mtf
 
 
-class WaterHeight(Kernel):
+class WaterHeight(IsotropicKernel):
     """
     Implementation of the water height kernel. Applied to a sequence of potential coefficients, the result is
     equivalent water height in meters when propagated to space domain.
@@ -360,7 +361,7 @@ class WaterHeight(Kernel):
         return (kn[:, np.newaxis] * r).T
 
 
-class OceanBottomPressure(Kernel):
+class OceanBottomPressure(IsotropicKernel):
     """
     Implementation of the ocean bottom pressure kernel. Applied to a sequence of potential coefficients, the result
     is ocean bottom pressure in Pascal when propagated to space domain.
@@ -375,7 +376,7 @@ class OceanBottomPressure(Kernel):
         return (kn[:, np.newaxis] * (r / grates.gravityfield.GRS80.normal_gravity(r, colat))).T
 
 
-class SurfaceDensity(Kernel):
+class SurfaceDensity(IsotropicKernel):
     """
     Implementation of the surface density kernel.
     """
@@ -389,7 +390,7 @@ class SurfaceDensity(Kernel):
         return (kn[:, np.newaxis] * r).T
 
 
-class Potential(Kernel):
+class Potential(IsotropicKernel):
     """
     Implementation of the Poisson kernel (disturbing potential).
     """
@@ -403,7 +404,7 @@ class Potential(Kernel):
         return np.ones((count, max_degree + 1 - min_degree))
 
 
-class GravityAnomaly(Kernel):
+class GravityAnomaly(IsotropicKernel):
     """
     """
     def __init__(self):
@@ -415,7 +416,7 @@ class GravityAnomaly(Kernel):
         return (kn[:, np.newaxis] * r).T
 
 
-class Gauss(Kernel):
+class Gauss(IsotropicKernel):
     """
     Implementation of the Gauss kernel.
     """
@@ -460,7 +461,7 @@ class Gauss(Kernel):
         return np.tile(self.__wn[min_degree:max_degree + 1], (count, 1))
 
 
-class GeoidHeight(Kernel):
+class GeoidHeight(IsotropicKernel):
     """
     Implementation of the geoid height kernel (disturbing potential divided by normal gravity).
     """
@@ -472,7 +473,7 @@ class GeoidHeight(Kernel):
         return np.tile(grates.gravityfield.GRS80.normal_gravity(r, colat)[:, np.newaxis], (1, max_degree + 1 - min_degree))
 
 
-class UpwardContinuation(Kernel):
+class UpwardContinuation(IsotropicKernel):
     """
     Implementation of the upward continuation kernel.
 
@@ -488,3 +489,143 @@ class UpwardContinuation(Kernel):
     def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
         """Kernel coefficients for degrees min_degree to max_degree."""
         return np.power(np.atleast_1d(self.__R / r)[:, np.newaxis], np.arange(min_degree, max_degree + 1, dtype=int) + 1)
+
+
+class AnisotropicKernel:
+    """
+    Representation of possibly anisotropic kernels in space domain.
+
+    Parameters
+    ----------
+    K : ndarray
+        kernel matrix (spherical harmonic mapping in degreewise order)
+    min_degree : int
+        minimum filter degree
+    max_degree : int
+        maximum filter degree
+    """
+    def __init__(self, K, min_degree, max_degree):
+
+        self.__matrix = K.copy()
+        self.__min_degree = min_degree
+        self.__max_degree = max_degree
+
+    def evaluate(self, source_longitude, source_latitude, eval_longitude, eval_latitude):
+        """
+        Evaluate the filter kernel in space domain.
+
+        Parameters
+        ----------
+        source_longitude : float
+            longitude of source point in radians
+        source_latitude : float
+            latitude of source point in radians
+        eval_longitude : ndarray(m,)
+            longitude of evaluation points in radians
+        eval_latitude : ndarray(m,)
+            latitude of evaluation points in radians
+
+        Returns
+        -------
+        kernel : ndarray(m,)
+            kernel values at the evaluation points
+        """
+        spherical_harmonics_source = grates.utilities.spherical_harmonics(self.__max_degree, np.pi * 0.5 - source_latitude, source_longitude)
+        v1 = grates.utilities.ravel_coefficients(spherical_harmonics_source, self.__min_degree, self.__max_degree) @ self.__matrix
+
+        spherical_harmonics_eval = grates.utilities.spherical_harmonics(self.__max_degree, np.pi * 0.5 - eval_latitude, eval_longitude)
+
+        return np.atleast_1d((v1 @ grates.utilities.ravel_coefficients(spherical_harmonics_eval, self.__min_degree, self.__max_degree).T).squeeze())
+
+    def evaluate_grid(self, source_longitude, source_latitude, eval_longitude, eval_latitude):
+        """
+        Evaluate the filter kernel on a longitude/latitude grid.
+
+        Parameters
+        ----------
+        source_longitude : float
+            longitude of source point in radians
+        source_latitude : float
+            latitude of source point in radians
+        eval_longitude : ndarray(m,)
+            longitude of evaluation meridians in radians
+        eval_latitude : ndarray(n,)
+            latitude of evaluation parallels in radians
+
+        Returns
+        -------
+        grid : ndarray(m, n)
+            kernel values on the grid
+        """
+        spherical_harmonics_source = grates.utilities.spherical_harmonics(self.__max_degree,
+                                                                          np.pi * 0.5 - source_latitude,
+                                                                          source_longitude)
+        v1 = grates.utilities.ravel_coefficients(spherical_harmonics_source, self.__min_degree, self.__max_degree) @ self.__matrix
+
+        pnm = grates.utilities.legendre_functions(self.__max_degree, np.pi * 0.5 - eval_latitude)
+        cs = grates.utilities.trigonometric_functions(self.__max_degree, eval_longitude)
+
+        grid = np.empty((eval_latitude.size, eval_longitude.size))
+        for k in range(eval_latitude.size):
+            grid[k, :] = (grates.utilities.ravel_coefficients(cs * pnm[k], self.__min_degree, self.__max_degree) @ v1.T).squeeze()
+
+        return grid
+
+    def modulation_transfer(self, psi, central_longitude=0, central_latitude=0, azimuth=0):
+        """
+        Modulation transfer function of anisotropic filter kernel. Two kernels are shifted on a great circle which
+        passes through the evaluation point with a given azimuth. Inspired by [1]_
+
+        Parameters
+        ----------
+        psi : float, ndarray(k,)
+            spherical distance in radians for which to compute the modulation transfer function
+        central_longitude : float
+            longitude of evaluation point in radians
+        central_latitude : float
+            latitude of evaluation point in radians
+        azimuth : float
+            azimuth of great circle in the evaluation point in radians
+
+        Returns
+        -------
+        mtf :  ndarray(nsteps,)
+            modulation transfer function
+
+        References
+        ----------
+
+        .. [1] Vishwakarma, B.D.; Devaraju, B.; Sneeuw, N. What Is the Spatial Resolution of grace Satellite Products
+               for Hydrology? Remote Sens. 2018, 10, 852.
+
+        """
+        psi_array = np.atleast_1d(psi)
+        theta0 = np.pi * 0.5 - (psi_array + central_latitude)
+        x0 = np.vstack(
+            (np.sin(theta0) * np.cos(central_longitude), np.sin(theta0) * np.sin(central_longitude), np.cos(theta0)))
+
+        ux = x0[0, 0]
+        uy = x0[1, 0]
+        uz = x0[2, 0]
+
+        ca = np.cos(azimuth)
+        sa = np.sin(azimuth)
+
+        rotation_matrix = np.array([[ca + ux**2 * (1 - ca), ux * uy * (1 - ca) - uz * sa, ux * uz * (1 - ca) + uy * sa],
+                                    [uy * ux * (1 - ca) + uz * sa, ca + uy**2 * (1 - ca), uy * uz * (1 - ca) - ux * sa],
+                                    [uz * ux * (1 - ca) - uy * sa, uz * uy * (1 - ca) + ux * sa, ca + uz**2 * (1 - ca)]])
+        x = rotation_matrix @ x0
+        lon = -np.arctan2(x[1, :], x[0, :])
+        lat = np.pi * 0.5 - np.arctan2(np.sqrt(x[0, :]**2 + x[1, :]**2), x[2, :])
+
+        kn1 = self.evaluate(lon[0], lat[0], lon, lat).flatten()
+
+        mtf = np.zeros(psi.size)
+        for k in range(0, psi_array.size):
+            kn2 = self.evaluate(lon[k], lat[k], lon[0:k + 1], lat[0:k + 1]).flatten()
+
+            kn = kn1[0:k + 1] + kn2
+            edge_threshold = min(kn[0], kn[-1])
+            mtf[k] = 0 if np.min(kn) >= edge_threshold else 1 - kn[int(kn.size // 2)] / np.max(kn)
+
+        return mtf

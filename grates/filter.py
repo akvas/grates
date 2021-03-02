@@ -486,173 +486,32 @@ class VDK(GeneralMatrix):
         return result
 
 
-class FilterKernel:
+class FilterKernel(grates.kernel.AnisotropicKernel):
     """
     Kernel representation of possibly anisotropic filter in space domain.
 
     Parameters
     ----------
-    filter : SpatialFilter instance or ndarray(max_degree + 1, max_degree + 1)
+    spatial_filter : SpatialFilter instance or ndarray(max_degree + 1, max_degree + 1)
         filter matrix
     min_degree : int
         minimum filter degree
     max_degree : int
         maximum filter degree
     """
-    def __init__(self, filter, min_degree, max_degree):
+    def __init__(self, spatial_filter, min_degree, max_degree, input_kernel='potential'):
 
-        self.__matrix = filter.matrix(min_degree, max_degree) if isinstance(filter, SpatialFilter) else filter
-        self.__min_degree = min_degree
-        self.__max_degree = max_degree
+        K = spatial_filter.matrix(min_degree, max_degree) if isinstance(spatial_filter, SpatialFilter) else spatial_filter
 
-    def evaluate(self, source_longitude, source_latitude, eval_longitude, eval_latitude, kernel='potential'):
-        """
-        Evaluate the filter kernel in space domain.
+        kernel_generator = grates.kernel.get_kernel(input_kernel)
+        kn = kernel_generator.coefficient_array(min_degree, max_degree)
+        kn_prime = kernel_generator.inverse_coefficient_array(min_degree, max_degree)
 
-        Parameters
-        ----------
-        source_longitude : float
-            longitude of source point in radians
-        source_latitude : float
-            latitude of source point in radians
-        eval_longitude : ndarray(m,)
-            longitude of evaluation points in radians
-        eval_latitude : ndarray(m,)
-            latitude of evaluation points in radians
-        kernel : str
-            name of kernel of filter in and output (for example 'ewh' means that the filter is applied to a
-            water height field)
+        K2 = (K * grates.utilities.ravel_coefficients(kn, min_degree, max_degree)[np.newaxis, :]) * grates.utilities.ravel_coefficients(kn_prime, min_degree, max_degree)[:, np.newaxis]
 
-        Returns
-        -------
-        kernel : ndarray(m,)
-            kernel values at the evaluation points
-        """
-        kn = grates.kernel.get_kernel(kernel)
+        super(FilterKernel, self).__init__(K2, min_degree, max_degree)
 
-        inverse_coefficients = kn.inverse_coefficient_array(0, self.__max_degree)
-
-        spherical_harmonics_source = grates.utilities.spherical_harmonics(self.__max_degree,
-                                                                          np.pi * 0.5 - source_latitude,
-                                                                          source_longitude)
-        v1 = grates.utilities.ravel_coefficients(spherical_harmonics_source * inverse_coefficients,
-                                                 self.__min_degree, self.__max_degree) @ self.__matrix
-
-        coefficients = kn.coefficient_array(0, self.__max_degree)
-        spherical_harmonics_eval = grates.utilities.spherical_harmonics(self.__max_degree, np.pi * 0.5 - eval_latitude,
-                                                                        eval_longitude) * coefficients
-
-        return np.atleast_1d((v1 @ grates.utilities.ravel_coefficients(spherical_harmonics_eval, self.__min_degree,
-                                                                       self.__max_degree).T).squeeze())
-
-    def evaluate_grid(self, source_longitude, source_latitude, eval_longitude, eval_latitude, kernel='potential'):
-        """
-        Evaluate the filter kernel on a longitude/latitude grid.
-
-        Parameters
-        ----------
-        source_longitude : float
-            longitude of source point in radians
-        source_latitude : float
-            latitude of source point in radians
-        eval_longitude : ndarray(m,)
-            longitude of evaluation meridians in radians
-        eval_latitude : ndarray(n,)
-            latitude of evaluation parallels in radians
-        kernel : str
-            name of kernel of filter in and output (for example 'ewh' means that the filter is applied to a
-            water height field)
-
-        Returns
-        -------
-        grid : ndarray(m, n)
-            kernel values on the grid
-        """
-        kn = grates.kernel.get_kernel(kernel)
-
-        inverse_coefficients = kn.inverse_coefficient_array(self.__max_degree)
-
-        spherical_harmonics_source = grates.utilities.spherical_harmonics(self.__max_degree,
-                                                                          np.pi * 0.5 - source_latitude,
-                                                                          source_longitude)
-        v1 = grates.utilities.ravel_coefficients(spherical_harmonics_source * inverse_coefficients,
-                                                 self.__min_degree, self.__max_degree) @ self.__matrix
-
-        coefficients = kn.coefficient_array(self.__max_degree)
-        pnm = grates.utilities.legendre_functions(self.__max_degree, np.pi * 0.5 - eval_latitude) * coefficients
-        cs = grates.utilities.trigonometric_functions(self.__max_degree, eval_longitude)
-
-        grid = np.empty((eval_latitude.size, eval_longitude.size))
-        for k in range(eval_latitude.size):
-            grid[k, :] = (grates.utilities.ravel_coefficients(cs * pnm[k], self.__min_degree,
-                                                              self.__max_degree) @ v1.T).squeeze()
-
-        return grid
-
-    def modulation_transfer(self, psi, central_longitude=0, central_latitude=0, azimuth=0, kernel='potential'):
-        """
-        Modulation transfer function of anisotropic filter kernel. Two kernels are shifted on a great circle which
-        passes through the evaluation point with a given azimuth. Inspired by [1]_
-
-        Parameters
-        ----------
-        psi : float, ndarray(k,)
-            spherical distance in radians for which to compute the modulation transfer function
-        central_longitude : float
-            longitude of evaluation point in radians
-        central_latitude : float
-            latitude of evaluation point in radians
-        azimuth : float
-            azimuth of great circle in the evaluation point in radians
-        kernel : str
-                name of kernel of filter in and output (for example 'ewh' means that the filter is applied to a
-                water height field)
-
-        Returns
-        -------
-        mtf :  ndarray(nsteps,)
-            modulation transfer function
-
-        References
-        ----------
-
-        .. [1] Vishwakarma, B.D.; Devaraju, B.; Sneeuw, N. What Is the Spatial Resolution of grace Satellite Products
-               for Hydrology? Remote Sens. 2018, 10, 852.
-
-        """
-        psi_array = np.atleast_1d(psi)
-        theta0 = np.pi * 0.5 - (psi_array + central_latitude)
-        x0 = np.vstack(
-            (np.sin(theta0) * np.cos(central_longitude), np.sin(theta0) * np.sin(central_longitude), np.cos(theta0)))
-
-        ux = x0[0, 0]
-        uy = x0[1, 0]
-        uz = x0[2, 0]
-
-        ca = np.cos(azimuth)
-        sa = np.sin(azimuth)
-
-        rotation_matrix = np.array([[ca + ux**2 * (1 - ca), ux * uy * (1 - ca) - uz * sa, ux * uz * (1 - ca) + uy * sa],
-                                    [uy * ux * (1 - ca) + uz * sa, ca + uy**2 * (1 - ca), uy * uz * (1 - ca) - ux * sa],
-                                    [uz * ux * (1 - ca) - uy * sa, uz * uy * (1 - ca) + ux * sa, ca + uz**2 * (1 - ca)]])
-        x = rotation_matrix @ x0
-        lon = -np.arctan2(x[1, :], x[0, :])
-        lat = np.pi * 0.5 - np.arctan2(np.sqrt(x[0, :]**2 + x[1, :]**2), x[2, :])
-
-        kn1 = self.evaluate(lon[0], lat[0], lon, lat, kernel=kernel).flatten()
-
-        mtf = np.zeros(psi.size)
-        for k in range(0, psi_array.size):
-            kn2 = self.evaluate(lon[k], lat[k], lon[0:k + 1], lat[0:k + 1], kernel=kernel).flatten()
-
-            kn = kn1[0:k + 1] + kn2
-            edge_threshold = min(kn[0], kn[-1])
-            mtf[k] = 0 if np.min(kn) >= edge_threshold else 1 - kn[int(kn.size // 2)] / np.max(kn)
-
-        return mtf
-
-    def spatial_resolution(self, central_longitude=0, central_latitude=0, azimuth=0, max_psi=np.pi, nsteps=100,
-                           kernel='potential', mtf_threshold=1e-3):
+    def spatial_resolution(self, central_longitude=0, central_latitude=0, azimuth=0, max_psi=np.pi, nsteps=100, mtf_threshold=1e-3):
         """
         Determine the spatial resolution of the filter kernel along a great circle segment in a given direction.
         The spatial resolution is determined on the basis of the modulation transfer function. Two Dirac impulses
@@ -672,9 +531,6 @@ class FilterKernel:
             maximum spherical distance in radians
         nsteps : int
             resolution of the points along the great circle segment
-        kernel : str
-            name of kernel of filter in and output (for example 'ewh' means that the filter is applied to a
-            water height field)
 
         Returns
         -------
@@ -707,13 +563,12 @@ class FilterKernel:
             lon = -np.arctan2(x[1, :], x[0, :])
             lat = np.pi * 0.5 - np.arctan2(np.sqrt(x[0, :] ** 2 + x[1, :] ** 2), x[2, :])
 
-            kn1 = self.evaluate(lon[0], lat[0], lon, lat, kernel=kernel).flatten()
+            kn1 = self.evaluate(lon[0], lat[0], lon, lat).flatten()
 
             lower_bound = psi.size - search_factor
             upper_bound = psi.size
             for k in range(0, psi.size, search_factor):
-                kn2 = self.evaluate(lon[k], lat[k], lon[0:k + 1:search_factor], lat[0:k + 1:search_factor],
-                                    kernel=kernel).flatten()
+                kn2 = self.evaluate(lon[k], lat[k], lon[0:k + 1:search_factor], lat[0:k + 1:search_factor]).flatten()
 
                 target_function = -kn1[0:k + 1:search_factor] - kn2
                 peaks, _ = sig.find_peaks(target_function)
@@ -723,7 +578,7 @@ class FilterKernel:
                     break
 
             for k in range(lower_bound, upper_bound):
-                kn2 = self.evaluate(lon[k], lat[k], lon[0:k + 1], lat[0:k + 1], kernel=kernel).flatten()
+                kn2 = self.evaluate(lon[k], lat[k], lon[0:k + 1], lat[0:k + 1]).flatten()
                 target_function = -kn1[0:k + 1] - kn2
                 peaks, _ = sig.find_peaks(target_function)
                 if len(peaks) > 0:
