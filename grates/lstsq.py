@@ -951,9 +951,49 @@ class NormalEquations:
         self.__cholesky()
 
         h = self.matrix.solve_triangular(self.right_hand_side, transpose=True)
-        x = self.matrix.solve_triangular(h)
+        xi = np.random.randint(0, 2, size=(h.shape[0], 100))
+        xi[xi == 0] = -1
+        x = self.matrix.solve_triangular(np.hstack((h, xi)))
+        self.monte_carlo_vectors = x[:, 1:]
 
-        return x
+        return x[:, 0:1]
+
+    def redundancy(self, combined_normals, variance_factor):
+        """
+        Compute the redudancy given a combined system of normal equations and the variance factor.
+
+        Parameters
+        ----------
+        combined_normals : NormalEquation
+            accumulated normal equation system
+        variance_factor : float
+            corresponding variance factor
+
+        Returns
+        -------
+        r : float
+            redudancy of the normal equation
+        """
+        estimated_trace = np.trace(combined_normals.monte_carlo_vectors.T @ (self.matrix.multiply_symmetric(combined_normals.monte_carlo_vectors))) / combined_normals.monte_carlo_vectors.shape[1]
+
+        return (self.observation_count - estimated_trace / variance_factor).squeeze()
+
+    def residual_square_sum(self, solution):
+        """
+        Compute the residual square sum for a given solution.
+
+        Parameters
+        ----------
+        solution : ndarray
+            ndarray containing the solution vector
+
+        Returns
+        -------
+        ePe : float
+            residual square sum
+        """
+        Nx = self.matrix.multiply_symmetric(solution)
+        return (self.observation_square_sum - 2 * np.sum(self.right_hand_side * solution) + np.sum(solution * Nx)).squeeze()
 
     def posterior_sigma(self, solution):
         """
