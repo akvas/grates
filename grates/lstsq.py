@@ -1031,3 +1031,22 @@ class NormalEquations:
             self.matrix.inverse()
 
         self.status = 'covariance_matrix'
+
+    def to_array(self):
+        """
+        Return normal equation system as ndarrays. Sparsity is not taken into account.
+
+        Returns
+        -------
+        N : ndarray
+            normal equation coefficient matrix
+        n : ndarray
+            right hand side
+        observation_square_sum : float
+            observation square sum
+        observation_count : int
+            observation count
+        """
+        return self.matrix.to_array(), self.right_hand_side, self.observation_square_sum, self.observation_count
+
+
