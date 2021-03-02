@@ -434,6 +434,35 @@ class BlockMatrix:
         return output
 
     @staticmethod
+    def compute_block_index(array_shape, block_size):
+        """
+        Compute the row and column block index given an array shape and block size.
+
+        Parameters
+        ----------
+        array_shape : tuple
+            2-tuple containing row and column count
+        block_size : int
+            target block size
+
+        Returns
+        -------
+        row_index : ndarray
+            index bounds for block rows
+        column_index  : ndarray
+            index bounds for block columns
+        """
+        row_index = [0]
+        while row_index[-1] < array_shape[0]:
+            row_index.append(min(array_shape[0], row_index[-1] + block_size))
+
+        column_index = [0]
+        while column_index[-1] < array_shape[1]:
+            column_index.append(min(array_shape[1], column_index[-1] + block_size))
+
+        return np.array(row_index), np.array(column_index)
+
+    @staticmethod
     def from_array(array, row_index, column_index):
         """
         Create a block matrix from a 2D ndarray. The contents of the array are copied.
