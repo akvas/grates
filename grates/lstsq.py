@@ -749,6 +749,32 @@ class BlockMatrix:
 
         return v
 
+    def multiply_symmetric(self, b):
+        """
+        Compute the matrix product :math:`\mathbf{v} = \mathbf{N} \cdot \mathbf{b}`. The block matrix is assumed to be symmetric.
+        Only the upper triangle is accessed.
+
+        Parameters
+        ----------
+        b : ndarray(m, n)
+            multiplicator as 2D ndarray
+
+        Returns
+        -------
+        v : ndarray(m, n)
+            multiplication result as 2D ndarray.
+        """
+        v = np.zeros(b.shape)
+        for i in range(self.shape[0]):
+            if self.__is_nonzero[i, i]:
+                v[self.__row_slice(i)] += self.__data[i, i] @ b[self.__row_slice(i)]
+            for j in range(i + 1, self.shape[1]):
+                if self.__is_nonzero[i, j]:
+                    v[self.__row_slice(i)] += self.__data[i, j] @ b[self.__row_slice(j)]
+                    v[self.__row_slice(j)] += self.__data[i, j].T @ b[self.__row_slice(i)]
+
+        return v
+
     def solve_triangular(self, b, transpose=False):
         """
        Solve the system of equations :math:`\mathbf{W} \cdot \mathbf{x} = \mathbf{b}` or
