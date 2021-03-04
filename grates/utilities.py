@@ -500,7 +500,7 @@ class Polynomial(TemporalBasisFunction):
         return dmatrix
 
 
-def kaula_curve(min_degree, max_degree, kaula_factor=1e-10, kaula_power=4.0):
+def kaula_array(min_degree, max_degree, kaula_factor=1e-10, kaula_power=4.0):
     """
     Return a Kaula-type curve of the form :math:`\sigma_n^2 = f \cdot \frac{1}{n^p}` as a coefficient array.
 
