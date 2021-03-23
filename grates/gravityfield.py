@@ -345,10 +345,32 @@ class PotentialCoefficients:
         """
         output_grid = grid.copy()
 
-        output_grid.values = output_grid.synthesis_matrix_per_order(0, 0, self.max_degree, kernel, self.GM, self.R) @ self.anm[:, 0]
-        for m in range(1, self.max_degree + 1):
-            Ak_cnm, Ak_snm = output_grid.synthesis_matrix_per_order(m, 0, self.max_degree, kernel, self.GM, self.R)
-            output_grid.values += Ak_cnm @ self.anm[m:, m] + Ak_snm @ self.anm[m - 1, m:]
+        try:
+            colatitude = grates.utilities.colatitude(grid.parallels, grid.semimajor_axis, grid.flattening)
+            radius = grates.utilities.geocentric_radius(grid.parallels, grid.semimajor_axis, grid.flattening)
+
+            output_grid.values = np.zeros(output_grid.point_count)
+
+            grid_kernel = grates.kernel.get_kernel(kernel)
+            kn = grid_kernel.inverse_coefficients(0, self.max_degree, radius, colatitude) * np.power((self.R / radius)[:, np.newaxis], np.arange(self.max_degree + 1, dtype=int) + 1) * self.GM / self.R
+
+            Pnm = grates.utilities.legendre_functions(self.max_degree, colatitude)
+            Pnm[:, :, 0] *= kn
+            for m in range(1, self.max_degree + 1):
+                Pnm[:, m:, m] *= kn[:, m:]
+                Pnm[:, m - 1, m:] *= kn[:, m:]
+            Pnm *= self.anm[np.newaxis, :, :]
+
+            cs = grates.utilities.trigonometric_functions(self.max_degree, grid.meridians)
+
+            for k in range(self.max_degree + 1):
+                output_grid.value_array += Pnm[:, k, :] @ cs[:, k, :].T
+
+        except AttributeError:
+            output_grid.values = output_grid.synthesis_matrix_per_order(0, 0, self.max_degree, kernel, self.GM, self.R) @ self.anm[:, 0]
+            for m in range(1, self.max_degree + 1):
+                Ak_cnm, Ak_snm = output_grid.synthesis_matrix_per_order(m, 0, self.max_degree, kernel, self.GM, self.R)
+                output_grid.values += Ak_cnm @ self.anm[m:, m] + Ak_snm @ self.anm[m - 1, m:]
 
         return output_grid
 
