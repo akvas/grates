@@ -9,6 +9,7 @@ import datetime as dt
 import tarfile
 import abc
 import gzip
+import bz2
 import numpy as np
 import grates
 from grates.gravityfield import PotentialCoefficients, TimeSeries, SurfaceMasCons
@@ -18,15 +19,98 @@ import scipy.spatial
 import netCDF4
 import os
 import contextlib
+import io
 
 
-def __parse_gfc_entry(line):
-    """Return the values for both coefficients in a GFC file line."""
-    sline = line.split()
-    n = int(sline[1])
-    m = int(sline[2])
+class InputFile:
+    """
+    Class for flexible input file handling.
 
-    return n, m, float(sline[3]), float(sline[4])
+    Parameters
+    ----------
+    file_name : file, str, os.PathLike
+        File or filename to read. If the filename extension is .gz or .bz2, the file is first decompressed.
+    """
+    def __init__(self, file_name):
+
+        if isinstance(file_name, os.PathLike):
+            file_name = os.fspath(file_name)
+
+        if isinstance(file_name, str):
+
+            if file_name.endswith('.gz'):
+                self.__stream = gzip.open(file_name, 'rb')
+            elif file_name.endswith('.bz2'):
+                self.__stream = bz2.open(file_name, 'rb')
+            else:
+                self.__stream = open(file_name, 'rb')
+
+            self.__is_stream_owner = True
+        elif isinstance(file_name, (io.BufferedIOBase, io.TextIOBase)):
+            self.__is_stream_owner = False
+            self.__stream = file_name
+        else:
+            raise ValueError('file_name must be a string, PathLike object or file object')
+
+        if isinstance(self.__stream, io.BufferedIOBase):
+            self.__is_binary = True
+        elif isinstance(self.__stream, io.TextIOBase):
+            self.__is_binary = False
+        else:
+            raise ValueError('file stream must be a binary or text stream')
+
+        if not self.__stream.readable():
+            raise ValueError('file stream must be readable')
+
+    def readline(self):
+        """
+        Read a line from input file.
+
+        Returns
+        -------
+        line : bytes
+            encoded line in file
+        """
+        if self.__is_binary:
+            return self.__stream.readline()
+        else:
+            return self.__stream.readline().encode(self.__stream.encoding)
+
+    def close(self):
+        """
+        Close file stream if it is generated in the constructor.
+        """
+        if self.__is_stream_owner:
+            self.__stream.close()
+
+    @staticmethod
+    @contextlib.contextmanager
+    def open(file_name):
+        """
+        Create an InputFile instance.
+
+        Parameters
+        ----------
+        file_name : file, str, os.PathLike
+            File or filename to read. If the filename extension is .gz or .bz2, the file is first decompressed.
+
+        Returns
+        -------
+        input_file : GeneratorContextManager
+            input file as context manager
+        """
+        try:
+            input_file = InputFile(file_name)
+            yield input_file
+        finally:
+            input_file.close()
+
+    def __iter__(self):
+        while True:
+            line = self.readline()
+            if not line:
+                break
+            yield line
 
 
 def loadgfc(file_name, max_degree=None):
@@ -47,19 +131,20 @@ def loadgfc(file_name, max_degree=None):
     """
     gf = PotentialCoefficients(3.986004415E+14, 6378136.3)
 
-    with open(file_name, 'r') as f:
+    with InputFile.open(file_name) as f:
 
         for line in f:
-            if line.startswith('gfc'):
-                n, m, cnm, snm = __parse_gfc_entry(line)
+            if line.startswith(b'gfc'):
+                sline = line.split()
+                n, m, cnm, snm = int(sline[1]), int(sline[2]), float(sline[3]), float(sline[4])
                 if max_degree and n > max_degree:
                     continue
                 gf.append('c', n, m, cnm)
                 gf.append('s', n, m, snm)
 
-            elif line.startswith('radius'):
+            elif line.startswith(b'radius'):
                 gf.R = float(line.split()[-1])
-            elif line.startswith('earth_gravity_constant'):
+            elif line.startswith(b'earth_gravity_constant'):
                 gf.GM = float(line.split()[-1])
 
     return gf
@@ -133,7 +218,8 @@ def loadesm(file_name, min_degree=0, max_degree=None):
         f = tar.extractfile(member)
         for line in f:
             if line.startswith(b'gfc'):
-                n, m, cnm, snm = __parse_gfc_entry(line.replace(b'D', b'e'))
+                sline = line.replace(b'D', b'e').split()
+                n, m, cnm, snm = int(sline[1]), int(sline[2]), float(sline[3]), float(sline[4])
                 if max_degree and n > max_degree or n < min_degree:
                     continue
                 gf.append('c', n, m, cnm)
