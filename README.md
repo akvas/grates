@@ -20,13 +20,26 @@ The features of grates are:
 Installation
 ------------
 
+The recommended way to install grates is in a [conda](https://docs.conda.io/en/latest/index.html) environment:
+```
+conda create -n grates_env
+conda activate grates_env
+```
+Then, install all dependencies:
+```
+conda install numpy scipy cartopy netcdf4 numpydoc sphinx
+```
 To install the current development version of the package, first clone the repository or download the zip archive.
-In the root directory
-of the package (i.e. the directory containing the ``setup.py`` file), running
-
-    pip install .
-
-will install the package and its dependencies.
+In the root directory of the package (i.e. the directory containing the ``setup.py`` file), running
+```
+python -m pip install .
+```
+will install the package.
+If you want to modify or extend the package, you can install it in develop mode by running
+```
+python -m pip install -e .
+```
+instead.
 
 License
 -------
