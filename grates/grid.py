@@ -1126,7 +1126,7 @@ class ReuterGrid(IrregularGrid):
     def copy(self):
         """Deep copy of a ReuterGrid instance."""
         grid = ReuterGrid(self.__level, self.semimajor_axis, self.flattening)
-        if self.__values is not None:
+        if self.values is not None:
             grid.values = self.values.copy()
         grid.epoch = self.epoch
 
@@ -1211,7 +1211,7 @@ class GeodesicGrid(IrregularGrid):
     def copy(self):
         """Deep copy of a GeodesicGrid instance."""
         grid = GeodesicGrid(self.__level, self.semimajor_axis, self.flattening)
-        if self.__values is not None:
+        if self.values is not None:
             grid.values = self.values.copy()
         grid.epoch = self.epoch
 
@@ -1275,7 +1275,7 @@ class GreatCircleSegment(IrregularGrid):
         """Deep copy of a GreatCircleSegment instance."""
         grid = GreatCircleSegment(self.__central_longitude, self.__central_latitude, self.__azimuth, self.__nsteps,
                                   self.__max_psi, self.semimajor_axis, self.flattening)
-        if self.__values is not None:
+        if self.values is not None:
             grid.values = self.values.copy()
         grid.epoch = self.epoch
 
