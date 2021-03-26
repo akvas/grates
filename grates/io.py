@@ -83,6 +83,9 @@ class InputFile:
         if self.__is_stream_owner:
             self.__stream.close()
 
+    def seek(self, offset, whence=0):
+        self.__stream.seek(offset, whence)
+
     @staticmethod
     @contextlib.contextmanager
     def open(file_name):
@@ -101,8 +104,10 @@ class InputFile:
         """
         try:
             input_file = InputFile(file_name)
+        except Exception as e:
+            raise e
+        else:
             yield input_file
-        finally:
             input_file.close()
 
     def __iter__(self):
@@ -357,7 +362,7 @@ class SINEXFile:
             blocks in the SINEX file in the order they are read
         """
         header_line = self.f.readline()
-        if not header_line.startswith('%'):
+        if not header_line.startswith(b'%'):
             self.f.seek(0)
 
         blocks = []
@@ -366,7 +371,7 @@ class SINEXFile:
 
             sline = line.rstrip()
 
-            if not sline or sline.startswith('*'):
+            if not sline or sline.startswith(b'*'):
                 continue
 
             if sline.startswith('%'):
@@ -467,14 +472,14 @@ class SINEXSphericalHarmonicsVector(SINEXBlock):
         index = []
         coefficients = []
         for line in f:
-            if not line or line.startswith('*'):
+            if not line or line.startswith(b'*'):
                 continue
-            if line.startswith('-'):
+            if line.startswith(b'-'):
                 break
 
             ptype = line[7:13].strip()
 
-            if ptype not in ['CN', 'SN']:
+            if ptype not in [b'CN', b'SN']:
                 raise ValueError('Parameter type <' + ptype + '> not supported.')
 
             degree = int(line[14:18].strip())
@@ -484,7 +489,7 @@ class SINEXSphericalHarmonicsVector(SINEXBlock):
             index.append(int(line[1:6]) - 1)
 
             x.append(float(line[47:68]))
-            if not block_type.startswith('SOLUTION/NORMAL_EQUATION_VECTOR'):
+            if not block_type.startswith(b'SOLUTION/NORMAL_EQUATION_VECTOR'):
                 sigmax.append(float(line[69:80]))
 
         if len(sigmax) == 0:
@@ -520,7 +525,7 @@ class SINEXSphericalHarmonicsVector(SINEXBlock):
             f.write(' {0:5d} {1:6s} {2:4d} -- {3:4d}'.format(k + 1, cs, coeff.degree, coeff.order))
             f.write(' {0:2s}:{1:03d}:{2:05d}'.format(start_year.strftime('%y'), time_delta.days + 1, time_delta.seconds))
             f.write(' ---- 2 {0:21.14e}'.format(self.x[k]))
-            if not self.block_type.startswith('SOLUTION/NORMAL_EQUATION_VECTOR'):
+            if not self.block_type.startswith(b'SOLUTION/NORMAL_EQUATION_VECTOR'):
                 f.write(' {0:10.5e}'.format(self.sigmax[k]) + os.linesep)
             else:
                 f.write(os.linesep)
@@ -572,9 +577,9 @@ class SINEXSymmetricMatrix(SINEXBlock):
             matrix = np.zeros((parameter_count, parameter_count))
 
         for line in f:
-            if not line or line.startswith('*'):
+            if not line or line.startswith(b'*'):
                 continue
-            if line.startswith('-'):
+            if line.startswith(b'-'):
                 break
             sline = line.split()
             row = int(sline[0]) - 1
@@ -653,17 +658,17 @@ class SINEXStatistics(SINEXBlock):
             file object ot be read.
         """
         for line in f:
-            if not line or line.startswith('*'):
+            if not line or line.startswith(b'*'):
                 continue
-            if line.startswith('-'):
+            if line.startswith(b'-'):
                 break
-            if line[1:].startswith('NUMBER OF DEGREES OF FREEDOM'):
+            if line[1:].startswith(b'NUMBER OF DEGREES OF FREEDOM'):
                 degrees_of_freedom = int(float(line[32:]))
-            elif line[1:].startswith('NUMBER OF OBSERVATIONS'):
+            elif line[1:].startswith(b'NUMBER OF OBSERVATIONS'):
                 observation_count = int(float(line[32:]))
-            elif line[1:].startswith('NUMBER OF UNKNOWNS'):
+            elif line[1:].startswith(b'NUMBER OF UNKNOWNS'):
                 parameters = int(float(line[32:]))
-            elif line[1:].startswith('WEIGHTED SQUARE SUM OF O-C'):
+            elif line[1:].startswith(b'WEIGHTED SQUARE SUM OF O-C'):
                 observation_square_sum = float(line[32:])
 
         return SINEXStatistics(degrees_of_freedom, observation_count, parameters, observation_square_sum, block_type)
@@ -688,9 +693,9 @@ class SINEXBlockPlaceholder(SINEXBlock):
             file object ot be read.
         """
         for line in f:
-            if not line or line.startswith('*'):
+            if not line or line.startswith(b'*'):
                 continue
-            if line.startswith('-'):
+            if line.startswith(b'-'):
                 break
 
         return SINEXBlockPlaceholder()
@@ -714,19 +719,19 @@ def read_sinex_block(start_line, f, parameter_count):
     block : SINEXBlock subclass
         successfully parsed SINEX block
     """
-    if start_line.startswith('+SOLUTION/ESTIMATE') or start_line.startswith('+SOLUTION/APRIORI') or start_line.startswith('+SOLUTION/NORMAL_EQUATION_VECTOR'):
+    if start_line.startswith(b'+SOLUTION/ESTIMATE') or start_line.startswith(b'+SOLUTION/APRIORI') or start_line.startswith(b'+SOLUTION/NORMAL_EQUATION_VECTOR'):
         block_type = start_line[1:]
         sinex_block = SINEXSphericalHarmonicsVector.from_file(f, block_type)
 
-    elif start_line.startswith('+SOLUTION/NORMAL_EQUATION_MATRIX'):
+    elif start_line.startswith(b'+SOLUTION/NORMAL_EQUATION_MATRIX'):
         block_type = start_line[1:-2]
         sinex_block = SINEXSymmetricMatrix.from_file(f, block_type, parameter_count)
 
-    elif start_line.startswith('+SOLUTION/MATRIX_ESTIMATE'):
+    elif start_line.startswith(b'+SOLUTION/MATRIX_ESTIMATE'):
         block_type = start_line[1:-2]
         sinex_block = SINEXSymmetricMatrix.from_file(f, block_type, parameter_count)
 
-    elif start_line.startswith('+SOLUTION/STATISTICS'):
+    elif start_line.startswith(b'+SOLUTION/STATISTICS'):
         block_type = start_line[1:]
         sinex_block = SINEXStatistics.from_file(f, block_type)
     else:
@@ -749,35 +754,30 @@ def loadsinex(file_name):
     blocks : list
         returns all recognized blocks in the SINEX file as a list.
     """
-    try:
-        f = gzip.open(file_name, 'r')
-    except OSError:
-        f = open(file_name, 'r')
+    with InputFile.open(file_name) as f:
 
-    header_line = f.readline()
-    if not header_line.startswith(b'%'):
-        f.seek(0)
+        header_line = f.readline()
+        if not header_line.startswith(b'%'):
+            f.seek(0)
 
-    blocks = []
-    parameter_count = None
-    for line in f:
+        blocks = []
+        parameter_count = None
+        for line in f:
 
-        sline = line.rstrip()
+            sline = line.rstrip()
 
-        if not sline or sline.startswith(b'*'):
-            continue
+            if not sline or sline.startswith(b'*'):
+                continue
 
-        if sline.startswith(b'%'):
-            break
+            if sline.startswith(b'%'):
+                break
 
-        if sline.startswith(b'+'):
-            block = read_sinex_block(sline, f, parameter_count)
-            if parameter_count is None:
-                parameter_count = block.parameter_count()
-            if not isinstance(block, SINEXBlockPlaceholder):
-                blocks.append(block)
-
-    f.close()
+            if sline.startswith(b'+'):
+                block = read_sinex_block(sline, f, parameter_count)
+                if parameter_count is None:
+                    parameter_count = block.parameter_count()
+                if not isinstance(block, SINEXBlockPlaceholder):
+                    blocks.append(block)
 
     return blocks
 
