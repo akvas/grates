@@ -109,6 +109,10 @@ class Grid(metaclass=abc.ABCMeta):
     def point_count(self):
         pass
 
+    @property
+    def size(self):
+        return self.point_count
+
     @abc.abstractmethod
     def voronoi_cells(self):
         pass
