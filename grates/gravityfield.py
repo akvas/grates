@@ -587,7 +587,21 @@ class AnisotropicBasisFunctions:
         return self.point_distribution.is_compatible(other.point_distribution)
 
     def to_grid(self, grid=grates.grid.GeographicGrid(), kernel='ewh'):
+        """
+        Compute gridded values from anisotropic kernel functions.
 
+        Parameters
+        ----------
+        grid : instance of Grid subclass
+            point distribution (Default: 0.5x0.5 degree geographic grid)
+        kernel : string
+            gravity field functional to be gridded (Default: equivalent water height). See Kernel for details.
+
+        Returns
+        -------
+        output_grid : instance of type(grid)
+            deep copy of the input grid with the gridded values
+        """
         kernel_function = grates.kernel.get_kernel(kernel)
 
         radius = grates.utilities.geocentric_radius(grid.parallels, grid.semimajor_axis, grid.flattening)
@@ -627,6 +641,14 @@ class RadialBasisFunctions:
         nodal points of splines as grates.grid.Grid instance
     K : 2d-ndarray
         kernel shape factors as coefficient array
+    min_degree : int
+        minimum degree of modelled frequency band
+    max_degree : int
+        maximum degree of modelled frequency band
+    GM : float
+        geocentric gravitational constant
+    R : float
+        reference radius
     """
     def __init__(self, point_distribution, K, min_degree, max_degree, GM=3.9860044150e+14, R=6.3781363000e+06):
 
@@ -648,7 +670,19 @@ class RadialBasisFunctions:
         self.point_distribution.values = val
 
     def to_potential_coefficients(self, blocking_factor=256):
+        """
+        Convert the radial basis functions to spherical harmonics.
 
+        Parameters
+        ----------
+        blocking_factor : int
+            block size into which to split the nodal points (this is only to keep memory consumption low)
+
+        Returns
+        -------
+        coeffs : grates.gravityfield.PotentialCoefficients
+            converted gravity field as PotentialCoefficients instance
+        """
         coefficients = PotentialCoefficients(self.GM, self.R)
         coefficients.anm = np.zeros((self.__max_degree + 1, self.__max_degree + 1))
         coefficients.epoch = self.epoch
@@ -672,9 +706,22 @@ class RadialBasisFunctions:
         return coefficients
 
     def to_grid(self, grid=grates.grid.GeographicGrid(), kernel='ewh'):
+        """
+        Compute gridded values from radial basis functions.
 
+        Parameters
+        ----------
+        grid : instance of Grid subclass
+            point distribution (Default: 0.5x0.5 degree geographic grid)
+        kernel : string
+            gravity field functional to be gridded (Default: equivalent water height). See Kernel for details.
+
+        Returns
+        -------
+        output_grid : instance of type(grid)
+            deep copy of the input grid with the gridded values
+        """
         return self.to_potential_coefficients().to_grid(grid, kernel)
-
 
 
 class TimeVariableGravityField:
