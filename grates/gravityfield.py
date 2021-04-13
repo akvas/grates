@@ -669,6 +669,9 @@ class RadialBasisFunctions:
     def values(self, val):
         self.point_distribution.values = val
 
+    def is_compatible(self, other):
+        return self.point_distribution.is_compatible(other.point_distribution)
+
     def to_potential_coefficients(self, blocking_factor=256):
         """
         Convert the radial basis functions to spherical harmonics.
