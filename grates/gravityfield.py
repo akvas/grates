@@ -622,6 +622,66 @@ class AnisotropicBasisFunctions:
         return output_grid
 
 
+class RadialBasisFunctions:
+    """
+    Gravity field represented by radial basis functions.
+
+    Parameters
+    ----------
+    point_distribution : grates.grid.Grid
+        nodal points of splines as grates.grid.Grid instance
+    K : 2d-ndarray
+        kernel shape factors as coefficient array
+    """
+    def __init__(self, point_distribution, K, min_degree, max_degree, GM=3.9860044150e+14, R=6.3781363000e+06):
+
+        self.__K = K.copy()
+        self.point_distribution = point_distribution
+        self.__min_degree = min_degree
+        self.__max_degree = max_degree
+        self.GM = GM
+        self.R = R
+        self.epoch = None
+        self.values = np.zeros((self.point_distribution.size))
+
+    @property
+    def values(self):
+        return self.point_distribution.values
+
+    @values.setter
+    def values(self, val):
+        self.point_distribution.values = val
+
+    def to_potential_coefficients(self, blocking_factor=256):
+
+        coefficients = PotentialCoefficients(self.GM, self.R)
+        coefficients.anm = np.zeros((self.__max_degree + 1, self.__max_degree + 1))
+        coefficients.epoch = self.epoch
+
+        start_index = 0
+        while start_index < self.point_distribution.size:
+            colatitude = grates.utilities.colatitude(self.point_distribution.latitude[start_index:min(start_index + blocking_factor, self.values.size)], self.point_distribution.semimajor_axis, self.point_distribution.flattening)
+            radius = grates.utilities.geocentric_radius(self.point_distribution.latitude[start_index:min(start_index + blocking_factor, self.values.size)], self.point_distribution.semimajor_axis, self.point_distribution.flattening)
+
+            Ynm = grates.utilities.spherical_harmonics(self.__max_degree, colatitude, self.point_distribution.longitude[start_index:min(start_index + blocking_factor, self.values.size)])
+            kn = np.power((self.R / radius)[:, np.newaxis], np.arange(self.__max_degree + 1, dtype=int) + 1)
+            Ynm[:, :, 0] *= kn
+            for m in range(1, self.__max_degree + 1):
+                Ynm[:, m:, m] *= kn[:, m:]
+                Ynm[:, m - 1, m:] *= kn[:, m:]
+            Ynm *= self.__K[np.newaxis, :, :]
+
+            coefficients.anm += np.sum(Ynm * self.values[start_index:min(start_index + blocking_factor, self.values.size), np.newaxis, np.newaxis], axis=0)
+            start_index += blocking_factor
+
+        return coefficients
+
+    def to_grid(self, grid=grates.grid.GeographicGrid(), kernel='ewh'):
+
+        return self.to_potential_coefficients().to_grid(grid, kernel)
+
+
+
 class TimeVariableGravityField:
     """
     Compose a time variable gravity field from multiple constituents, for example trend, annual cycle and an irregular time series.
