@@ -344,14 +344,14 @@ class PotentialCoefficients:
             deep copy of the input grid with the gridded values
         """
         output_grid = grid.copy()
+        output_grid.values = np.zeros(output_grid.point_count)
+
+        grid_kernel = grates.kernel.get_kernel(kernel)
 
         try:
             colatitude = grates.utilities.colatitude(grid.parallels, grid.semimajor_axis, grid.flattening)
             radius = grates.utilities.geocentric_radius(grid.parallels, grid.semimajor_axis, grid.flattening)
 
-            output_grid.values = np.zeros(output_grid.point_count)
-
-            grid_kernel = grates.kernel.get_kernel(kernel)
             kn = grid_kernel.inverse_coefficients(0, self.max_degree, radius, colatitude) * np.power((self.R / radius)[:, np.newaxis], np.arange(self.max_degree + 1, dtype=int) + 1) * self.GM / self.R
 
             Pnm = grates.utilities.legendre_functions(self.max_degree, colatitude)
@@ -367,10 +367,29 @@ class PotentialCoefficients:
                 output_grid.value_array += Pnm[:, k, :] @ cs[:, k, :].T
 
         except AttributeError:
-            output_grid.values = output_grid.synthesis_matrix_per_order(0, 0, self.max_degree, kernel, self.GM, self.R) @ self.anm[:, 0]
-            for m in range(1, self.max_degree + 1):
-                Ak_cnm, Ak_snm = output_grid.synthesis_matrix_per_order(m, 0, self.max_degree, kernel, self.GM, self.R)
-                output_grid.values += Ak_cnm @ self.anm[m:, m] + Ak_snm @ self.anm[m - 1, m:]
+            block_size = min(512, output_grid.point_count)
+            block_index = [0]
+            while block_index[-1] < output_grid.point_count:
+                block_index.append(min(block_index[-1] + block_size, output_grid.point_count))
+
+            for i1, i2 in zip(block_index[0:-1], block_index[1:]):
+                colatitude = grates.utilities.colatitude(output_grid.latitude[i1:i2], output_grid.semimajor_axis, output_grid.flattening)
+                radius = grates.utilities.geocentric_radius(output_grid.latitude[i1:i2], output_grid.semimajor_axis, output_grid.flattening)
+
+                kn = grid_kernel.inverse_coefficients(0, self.max_degree, radius, colatitude) * np.power((self.R / radius)[:, np.newaxis], np.arange(self.max_degree + 1, dtype=int) + 1) * self.GM / self.R
+                Ynm = grates.utilities.spherical_harmonics(self.max_degree, colatitude, output_grid.longitude[i1:i2])
+                Ynm[:, :, 0] *= kn
+                for m in range(1, self.max_degree + 1):
+                    Ynm[:, m:, m] *= kn[:, m:]
+                    Ynm[:, m - 1, m:] *= kn[:, m:]
+
+                for k in range(self.max_degree + 1):
+                    output_grid.values[i1:i2] += Ynm[:, k, :] @ self.anm[k, :]
+
+            # output_grid.values = output_grid.synthesis_matrix_per_order(0, 0, self.max_degree, kernel, self.GM, self.R) @ self.anm[:, 0]
+            # for m in range(1, self.max_degree + 1):
+            #     Ak_cnm, Ak_snm = output_grid.synthesis_matrix_per_order(m, 0, self.max_degree, kernel, self.GM, self.R)
+            #     output_grid.values += Ak_cnm @ self.anm[m:, m] + Ak_snm @ self.anm[m - 1, m:]
 
         return output_grid
 
