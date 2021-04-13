@@ -207,7 +207,7 @@ class Grid(metaclass=abc.ABCMeta):
         Parameters
         ----------
         basin : Basin
-            Basin instance.
+            Basin instance or list of polygons (2d arrays with longitude and latitude in columns 0 and 1).
         buffer : float
             buffer around the basin polygons in meters (default: no buffer)
 
@@ -216,7 +216,10 @@ class Grid(metaclass=abc.ABCMeta):
         mask : array_like(m,n)
             boolean array of size(nlons, nlats), True for points inside the polygon, False for points outside.
         """
-        return basin.contains_points(self.longitude, self.latitude, buffer)
+        if isinstance(basin, grates.grid.Basin):
+            return basin.contains_points(self.longitude, self.latitude, buffer)
+        else:
+            return grates.grid.Basin(basin).contains_points(self.longitude, self.latitude, buffer)
 
     def distance_matrix(self):
         """
