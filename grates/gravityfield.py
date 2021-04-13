@@ -386,11 +386,6 @@ class PotentialCoefficients:
                 for k in range(self.max_degree + 1):
                     output_grid.values[i1:i2] += Ynm[:, k, :] @ self.anm[k, :]
 
-            # output_grid.values = output_grid.synthesis_matrix_per_order(0, 0, self.max_degree, kernel, self.GM, self.R) @ self.anm[:, 0]
-            # for m in range(1, self.max_degree + 1):
-            #     Ak_cnm, Ak_snm = output_grid.synthesis_matrix_per_order(m, 0, self.max_degree, kernel, self.GM, self.R)
-            #     output_grid.values += Ak_cnm @ self.anm[m:, m] + Ak_snm @ self.anm[m - 1, m:]
-
         return output_grid
 
     def vector(self):
