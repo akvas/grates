@@ -578,6 +578,7 @@ class AnisotropicBasisFunctions:
         self.GM = GM
         self.R = R
         self.epoch = None
+        self.values = np.zeros((self.point_distribution.size))
 
     @property
     def values(self):
