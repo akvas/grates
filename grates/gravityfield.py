@@ -886,7 +886,10 @@ class TimeSeries:
         idx = np.searchsorted(t, epoch)
         weight = (epoch - t[idx - 1]).total_seconds() / (t[idx] - t[idx - 1]).total_seconds()
 
-        return self.__data[idx - 1] * (1 - weight) + self.__data[idx] * weight
+        output = self.__data[idx - 1] * (1 - weight) + self.__data[idx] * weight
+        output.epoch = epoch
+
+        return output
 
     def evaluate_at(self, epoch):
         """
@@ -990,7 +993,10 @@ class Trend:
         """
         dt = (epoch - self.__reference_epoch).total_seconds() / (86400 * self.__time_scale)
 
-        return self.__data * dt
+        output = self.__data * dt
+        output.epoch = epoch
+
+        return output
 
 
 class Oscillation:
@@ -1033,7 +1039,10 @@ class Oscillation:
         """
         dt = (epoch - self.__reference_epoch).total_seconds() / (86400 * self.__period)
 
-        return self.__data_cosine * np.cos(2 * np.pi * dt) + self.__data_sine * np.sin(2 * np.pi * dt)
+        output = self.__data_cosine * np.cos(2 * np.pi * dt) + self.__data_sine * np.sin(2 * np.pi * dt)
+        output.epoch = epoch
+
+        return output
 
 
 def gridded_rms(temporal_gravityfield, epochs, kernel='ewh', base_grid=grates.grid.GeographicGrid()):
