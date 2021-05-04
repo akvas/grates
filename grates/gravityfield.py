@@ -955,6 +955,8 @@ class TimeSeries:
         for k, d in enumerate(self.__data):
             d.update_from_vector(observations[k, :])
 
+        return estimated_trend
+
 
 class Trend:
     """
