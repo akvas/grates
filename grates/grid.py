@@ -507,6 +507,8 @@ class RegularGrid(Grid):
         if val is None:
             self.value_array = None
         elif isinstance(val, np.ndarray):
+            if val.ndim > 1:
+                raise ValueError("unable to assign values of dimension {0:d} to grid".format(val.ndim))
             if val.size != self.point_count:
                 raise ValueError("unable to assign values of size {0:d} to grid with {1:d} points".format(val.size, self.point_count))
             self.value_array = np.reshape(val, (self.parallels.size, self.meridians.size))
@@ -831,6 +833,8 @@ class IrregularGrid(Grid):
         if val is None:
             self.__values = None
         elif isinstance(val, np.ndarray):
+            if val.ndim > 1:
+                raise ValueError("unable to assign values of dimension {0:d} to grid".format(val.ndim))
             if val.size != self.point_count:
                 raise ValueError("unable to assign values of size {0:d} to grid with {1:d} points".format(val.size, self.point_count))
             self.__values = val
