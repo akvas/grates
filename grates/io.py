@@ -20,6 +20,7 @@ import netCDF4
 import os
 import contextlib
 import io
+import yaml
 
 
 class InputFile:
@@ -82,6 +83,13 @@ class InputFile:
         """
         if self.__is_stream_owner:
             self.__stream.close()
+
+    def read(self, size=-1):
+        self.__stream.read(size)
+
+    @property
+    def stream(self):
+        return self.__stream
 
     def seek(self, offset, whence=0):
         self.__stream.seek(offset, whence)
@@ -860,3 +868,54 @@ def loadcsr06mascons(file_name):
         data.append(mascons)
 
     return TimeSeries(data)
+
+
+def loadgsm(file_name):
+    """
+    Read spherical harmonics coefficients from an GRACE/GRACE-FO SDS GSM file.
+    The epoch of the gravity field is defined as the midpoint between start and end of data coverage.
+
+    Parameters
+    ----------
+    file_name : str
+        archive file name
+
+    Returns
+    -------
+    coefficients : grates.gravityfield.PotentialCoefficients
+        PotentialCoefficients instance
+    """
+    with InputFile.open(file_name) as f:
+
+        header = b''
+        for line in f:
+            if line.startswith(b'# End of YAML header'):
+                break
+            header += line
+
+        yaml_header = yaml.safe_load(header)
+
+        max_degree = yaml_header['header']['dimensions']['degree']
+        R = yaml_header['header']['non-standard_attributes']['mean_equator_radius']['value']
+        GM = yaml_header['header']['non-standard_attributes']['earth_gravity_param']['value']
+
+        time_start = yaml_header['header']['global_attributes']['time_coverage_start']
+        time_end = yaml_header['header']['global_attributes']['time_coverage_start']
+        epoch = time_start + (time_end - time_start) * 0.5
+
+        anm = np.zeros((max_degree + 1, max_degree + 1))
+        for line in f:
+            if line.startswith(b'GRCOF2'):
+                sline = line.split()
+                n = int(sline[1])
+                m = int(sline[2])
+
+                anm[n, m] = float(sline[3])
+                if m > 0:
+                    anm[m - 1, n] = float(sline[4])
+
+        coeffs = grates.gravityfield.PotentialCoefficients(GM, R)
+        coeffs.anm = anm
+        coeffs.epoch = epoch
+
+        return coeffs
