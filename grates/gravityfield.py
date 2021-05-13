@@ -388,7 +388,8 @@ class PotentialCoefficients:
 
         return output_grid
 
-    def vector(self):
+    @property
+    def values(self):
         """
         Return a vector representation of the potential coefficients.
 
@@ -399,16 +400,24 @@ class PotentialCoefficients:
         """
         return grates.utilities.ravel_coefficients(self.anm)
 
-    def update_from_vector(self, x):
+    @values.setter
+    def values(self, val):
         """
-        Set the coefficient array from a vector.
+        Assign potential coefficients values from a vector representation.
 
         Parameters
         ----------
-        x : ndarray((max_degree + 1)**2)
-            coefficients in vector representation
+        val : ndarray((max_degree + 1)**2) or None
+            ravelled coefficient array
         """
-        self.anm = grates.utilities.unravel_coefficients(x)
+        if val is None:
+            self.value_array = None
+        elif isinstance(val, np.ndarray):
+            if val.ndim > 1:
+                raise ValueError("unable to assign values of dimension {0:d} to gravity field".format(val.ndim))
+            self.anm = grates.utilities.unravel_coefficients(val)
+        else:
+            raise ValueError("grid values must be either None or " + str(np.ndarray))
 
     def gravitational_acceleration(self, xyz):
         """
@@ -916,12 +925,12 @@ class TimeSeries:
         time_series : ndarray(n, p)
             time series of n gravity field epochs with p parameters.
         """
-        shape = len(self.__data), self.__data[0].vector().size
+        shape = len(self.__data), self.__data[0].values.size
 
         data_matrix = np.empty(shape)
 
         for k in range(data_matrix.shape[0]):
-            data_matrix[k, :] = self.__data[k].vector()[0:shape[1]]
+            data_matrix[k, :] = self.__data[k].values[0:shape[1]]
 
         return data_matrix
 
@@ -953,7 +962,7 @@ class TimeSeries:
         estimated_trend = np.linalg.pinv(design_matrix) @ observations
         observations -= design_matrix @ estimated_trend
         for k, d in enumerate(self.__data):
-            d.update_from_vector(observations[k, :])
+            d.values = observations[k, :]
 
         return estimated_trend
 
