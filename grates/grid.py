@@ -495,12 +495,12 @@ class RegularGrid(Grid):
 
     @property
     def area(self):
-        return self.__areas.flatten()
+        return self.__areas.ravel()
 
     @property
     def values(self):
         if self.value_array is not None:
-            return self.value_array.flatten()
+            return self.value_array.ravel()
 
     @values.setter
     def values(self, val):
