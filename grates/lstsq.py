@@ -902,6 +902,15 @@ class BlockMatrix:
                 elif not self.__is_nonzero[row, column] and other.__is_nonzero[row, column]:
                     self[row, column] = other[row, column] * factor
 
+    def diag(self):
+        """Return copy of main diagonal."""
+        d = np.zeros(min(self.__row_index[-1], self.__column_index[-1]))
+        for idx in range(min(len(self.__row_index), len(self.__column_index)) - 1):
+            if self.__is_nonzero[idx, idx]:
+                d[self.__row_index[idx]:self.__row_index[idx + 1]] = np.diag(self.__data[idx, idx])
+
+        return d
+
 
 class NormalEquations:
     """
