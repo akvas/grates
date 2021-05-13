@@ -48,9 +48,12 @@ from . import grid
 from . import io
 from . import kernel
 from . import lstsq
-from . import plot
 from . import time
 from . import transport
 from . import utilities
-
-__all__ = ['data', 'filter', 'gravityfield', 'grid', 'io', 'kernel', 'lstsq', 'plot', 'time', 'transport', 'utilities']
+try:
+    from . import plot
+except ImportError:
+    __all__ = ['data', 'filter', 'gravityfield', 'grid', 'io', 'kernel', 'lstsq', 'time', 'transport', 'utilities']
+else:
+    __all__ = ['data', 'filter', 'gravityfield', 'grid', 'io', 'kernel', 'lstsq', 'time', 'transport', 'utilities', 'plot']
