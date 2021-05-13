@@ -870,6 +870,47 @@ def loadcsr06mascons(file_name):
     return TimeSeries(data)
 
 
+def loadrl06mascongrids(file_name, scale=1e-2, data_layer='lwe_thickness'):
+    """
+    Read GRACE/GRACE-FO RL06 mascon grids from a NetCDF file.
+
+    Parameters
+    ----------
+    file_name : str
+        NetCDF file name
+    scale : float
+        scale is applied to the data_layer (default: 1e-2, centimeters to meters)
+    data_layer : str
+        name of the data layer to return (default: lwe_thickness)
+
+    Returns
+    -------
+    time_series : grates.gravityfield.TimeSeries
+        TimeSeries instance
+    """
+    dataset = netCDF4.Dataset(file_name)
+    longitude = np.deg2rad(dataset['lon'])
+    longitude[longitude > np.pi] -= 2 * np.pi
+    idx_lon = np.argsort(longitude)
+    longitude = longitude[idx_lon]
+    latitude = np.deg2rad(dataset['lat'])
+    idx_lat = np.argsort(latitude)[::-1]
+    latitude = latitude[idx_lat]
+    times = np.asarray(dataset['time'])
+
+    base_grid = grates.grid.RegularGrid(longitude, latitude, a=grates.gravityfield.WGS84.R, f=grates.gravityfield.WGS84.flattening)
+
+    data = []
+    for k in range(times.size):
+        grid = base_grid.copy()
+        values = dataset[data_layer][k, :, :] * scale
+        grid.value_array =  values[np.ix_(idx_lat, idx_lon)]
+        grid.epoch = dt.datetime(2002, 1, 1) + dt.timedelta(days=float(times[k]))
+        data.append(grid)
+
+    return TimeSeries(data)
+
+
 def loadgsm(file_name):
     """
     Read spherical harmonics coefficients from an GRACE/GRACE-FO SDS GSM file.
