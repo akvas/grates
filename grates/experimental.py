@@ -233,7 +233,7 @@ def vce_psd(x, y, nperseg=256, initial_variance=1, max_iter=5, detrend=False, wi
 
 def legendre_matern(sigma0, alpha, nu, psi, max_degree=1024, min_degree=2):
 
-    n = np.arange(max_degree + 1)
+    n = np.arange(max_degree + 1, dtype=float)
 
     coefficients = sigma0**2 * (alpha**2 + n**2)**-(nu + 0.5)
     coefficients[0:min_degree] = 0
