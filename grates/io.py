@@ -891,7 +891,7 @@ def loadrl06mascongrids(file_name, scale=1e-2, data_layer='lwe_thickness'):
     dataset = netCDF4.Dataset(file_name)
     longitude = np.deg2rad(dataset['lon'])
     longitude[longitude > np.pi] -= 2 * np.pi
-    idx_lon = np.argsort(longitude)
+    idx_lon = np.argsort(longitude, kind='stable')
     longitude = longitude[idx_lon]
     latitude = np.deg2rad(dataset['lat'])
     idx_lat = np.argsort(latitude)[::-1]
