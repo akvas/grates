@@ -241,7 +241,14 @@ def legendre_matern(sigma0, alpha, nu, psi, max_degree=1024, min_degree=2):
     return grates.utilities.legendre_summation(coefficients, psi)
 
 
+def legendre_matern_coefficients(sigma0, alpha, nu, psi, max_degree=1024, min_degree=2):
 
+    n = np.arange(max_degree + 1, dtype=float)
+
+    coefficients = sigma0**2 * (alpha**2 + n**2)**-(nu + 0.5)
+    coefficients[0:min_degree] = 0
+
+    return coefficients
 
 
 
