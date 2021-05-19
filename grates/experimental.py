@@ -231,25 +231,73 @@ def vce_psd(x, y, nperseg=256, initial_variance=1, max_iter=5, detrend=False, wi
     return np.linspace(0, 0.5/dx, variance_components.size),  variance_components*dx*np.sqrt(2*(nperseg-1)), dummy[1:]-dummy[0:-1], dct_matrix
 
 
-def legendre_matern(sigma0, alpha, nu, psi, max_degree=1024, min_degree=2):
+def legendre_matern(sigma0, alpha, nu, psi, min_degree=2, max_degree=1024):
+    """
+    Homogeneous and isotropic covariance function on the sphere as defined in [1]_.
 
+    References
+    ----------
+
+    .. [1] Joseph Guinness, Montserrat Fuentes, Isotropic covariance functions on spheres: Some properties and modeling considerations,
+           Journal of Multivariate Analysis, Volume 143, 2016, Pages 143-152, ISSN 0047-259X,
+
+    Parameters
+    ----------
+    sigma0 : float
+        overall variance factor
+    alpha : float
+        parameter controlling the spatial extent
+    nu : float
+        parameter controlling the smoothness of the function
+    psi : ndarray
+        spherical distance in radians
+    min_degree : int
+        minimum degree of the Legendre polynomial sum
+    max_degree :
+        maximum degree of the Legendre polynomial sum
+
+    Returns
+    -------
+    covariance : ndarray
+        covariance function evaluated at the given spherical distance
+    """
+    coefficients = legendre_matern_coefficients(sigma0, alpha, nu, min_degree, max_degree)
+    degrees = np.arange(max_degree + 1, dtype=float)
+
+    return grates.utilities.legendre_summation(coefficients / np.sqrt(2 * degrees + 1), psi)
+
+
+def legendre_matern_coefficients(sigma0, alpha, nu, min_degree=2, max_degree=1024):
+    """
+    Coefficients of a homogeneous and isotropic covariance function on the sphere as defined in [1]_.
+
+    References
+    ----------
+
+    .. [1] Joseph Guinness, Montserrat Fuentes, Isotropic covariance functions on spheres: Some properties and modeling considerations,
+           Journal of Multivariate Analysis, Volume 143, 2016, Pages 143-152, ISSN 0047-259X, https://doi.org/10.1016/j.jmva.2015.08.018.
+
+    Parameters
+    ----------
+    sigma0 : float
+        overall variance factor
+    alpha : float
+        parameter controlling the spatial extent
+    nu : float
+        parameter controlling the smoothness of the function
+    min_degree : int
+        minimum degree of the non-zero coefficients
+    max_degree :
+        maximum degree of the non-zero coefficients
+
+    Returns
+    -------
+    kn : ndarray
+        coefficients of the covariance function
+    """
     n = np.arange(max_degree + 1, dtype=float)
 
-    coefficients = sigma0**2 * (alpha**2 + n**2)**-(nu + 0.5)
-    coefficients[0:min_degree] = 0
-
-    return grates.utilities.legendre_summation(coefficients, psi)
-
-
-def legendre_matern_coefficients(sigma0, alpha, nu, psi, max_degree=1024, min_degree=2):
-
-    n = np.arange(max_degree + 1, dtype=float)
-
-    coefficients = sigma0**2 * (alpha**2 + n**2)**-(nu + 0.5)
-    coefficients[0:min_degree] = 0
+    coefficients = np.zeros(n.size)
+    coefficients[min_degree:] = sigma0**2 / (alpha**2 + n[min_degree:]**2)**(nu + 0.5) * (2 * n[min_degree:] + 1) * np.sqrt(2 * n[min_degree:] + 1)
 
     return coefficients
-
-
-
-
