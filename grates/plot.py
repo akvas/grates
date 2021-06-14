@@ -121,8 +121,8 @@ def surface_tiles(grid, ax=None, vmin=None, vmax=None, **kwargs):
         ax = plt.gca()
     if grid.values is not None:
         p.set_array(grid.values)
+        p.set_clim(vmin, vmax)
     ax.add_collection(p)
-    p.set_clim(vmin, vmax)
     return p
 
 
