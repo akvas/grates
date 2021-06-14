@@ -205,7 +205,7 @@ class IsotropicKernel(metaclass=abc.ABCMeta):
         kn_array = np.zeros((count, max_degree + 1, max_degree + 1))
         for n in range(min_degree, max_degree + 1):
             row_idx, col_idx = grates.gravityfield.degree_indices(n)
-            kn_array[:, row_idx, col_idx] = kn[n - min_degree]
+            kn_array[:, row_idx, col_idx] = kn[:, n - min_degree]
 
         return kn_array
 
@@ -235,7 +235,7 @@ class IsotropicKernel(metaclass=abc.ABCMeta):
         kn_array = np.zeros((count, max_degree + 1, max_degree + 1))
         for n in range(min_degree, max_degree + 1):
             row_idx, col_idx = grates.gravityfield.degree_indices(n)
-            kn_array[:, row_idx, col_idx] = kn[n - min_degree]
+            kn_array[:, row_idx, col_idx] = kn[:, n - min_degree]
 
         return kn_array
 
