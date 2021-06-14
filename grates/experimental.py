@@ -301,3 +301,36 @@ def legendre_matern_coefficients(sigma0, alpha, nu, min_degree=2, max_degree=102
     coefficients[min_degree:] = sigma0**2 / (alpha**2 + n[min_degree:]**2)**(nu + 0.5) * (2 * n[min_degree:] + 1) * np.sqrt(2 * n[min_degree:] + 1)
 
     return coefficients
+
+
+def var_spectrum(ar_model, freqs):
+    """
+    Compute the power spectral density of a vector autoregressive model.
+
+    Parameters
+    ----------
+    ar_model : grates.lstsq.AutoregressiveModel
+        AutoregressiveModel instance
+    freqs : ndarray
+        linear frequency vector for which the PSD should be computed
+
+    Returns
+    -------
+    psd : ndarray
+        main diagonals of PSD matrix for the given frequencies with shape (freqs.size, ar_model.dimension)
+    """
+    psd = np.zeros((freqs.size, ar_model.dimension))
+
+    L = np.linalg.cholesky(ar_model.white_noise_covariance)
+    for i in range(freqs.size):
+
+        F = np.eye(ar_model.dimension, dtype=complex)
+        for k in range(len(ar_model.coefficients)):
+            F -= ar_model.coefficients[k] * np.exp(-2 * np.pi * freqs[i] * (k + 1) * 1j)
+
+        G = np.linalg.solve(F, L)
+
+        S = G @ G.conj().T
+        psd[i, :] = np.abs(np.diag(S))
+
+    return psd
