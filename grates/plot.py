@@ -44,6 +44,16 @@ class StyleContext:
             style_dict['font.family'] = 'Arial'
             style_dict['figure.dpi'] = 600
 
+        elif name == 'article_arial':
+            font_size_small = 8
+            font_size_medium = 10
+            font_size_large = 11
+            linewidth = 2
+            figure_size = (10 / 2.54, 6 / 2.54)
+
+            style_dict['font.family'] = 'Arial'
+            style_dict['figure.dpi'] = 600
+
         style_dict.update(**{'font.size': font_size_small, 'axes.titlesize': font_size_large,
                       'axes.labelsize': font_size_medium, 'figure.titlesize': font_size_large,
                       'xtick.labelsize': font_size_small, 'legend.fontsize': font_size_small,
