@@ -296,6 +296,40 @@ class Grid(metaclass=abc.ABCMeta):
 
         return point_index
 
+    def point_neighbours(self):
+        """
+        Return the indices of the neighbours of each point as a list of arrays.
+
+        Returns
+        -------
+        neighbours : list of index arrays
+            indices of neighbours for each grid point (neighbours[k] contains the indices of all neighbours of the k-th point)
+        """
+        X = self.cartesian_coordinates()
+        hull = scipy.spatial.ConvexHull(X)
+
+        neighbours = [set() for _ in range(self.size)]
+        for simplex in hull.simplices:
+            neighbours[simplex[0]].update(simplex[1:])
+            neighbours[simplex[1]].update(simplex[0::2])
+            neighbours[simplex[2]].update(simplex[0:2])
+
+        neighbours_sorted = [None for _ in range(self.size)]
+        E = np.vstack((-X[:, 1], X[:, 0], np.zeros(self.size))).T
+        N = np.vstack((-X[:, 2] * X[:, 0], -X[:, 2] * X[:, 1], np.sum(X[:, 0:2] * X[:, 0:2], axis=1))).T / (np.sqrt(np.sum(X * X, axis=1)))[:, np.newaxis]
+        for k in range(self.size):
+            unsorted_indices = tuple(neighbours[k])
+            d = X[unsorted_indices, :] - X[k, :]
+            east_projection = d @ E[k, :]
+            north_projection = d @ N[k, :]
+
+            idx = np.argsort(north_projection)[::-1]
+            idx2 = np.argsort(east_projection[idx])
+
+            neighbours_sorted[k] = np.array(unsorted_indices)[idx][idx2]
+
+        return neighbours_sorted
+
     @abc.abstractmethod
     def synthesis_matrix_per_order(self, m, min_degree, max_degree, kernel, GM, R):
         pass
