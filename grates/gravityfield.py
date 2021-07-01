@@ -9,6 +9,7 @@ import numpy as np
 import grates.grid
 import grates.kernel
 import grates.utilities
+import scipy.spatial
 
 
 def degree_indices(n, max_order=None):
@@ -966,6 +967,45 @@ class TimeSeries:
 
         return estimated_trend
 
+    def bin(self, bin_center_epochs, func=np.mean, no_data=np.nan):
+        """
+        Aggreate time series data in bins. Each epoch is sorted into a bin based on time difference to the bin center time stamps. `func` is then applied to each resulting
+        set of data. If a set is empty `no_data` is assigned to the bin center.
+
+        Parameters
+        ----------
+        bin_center_epochs: list of bin_center_epochs
+            time stamps of the bin centers
+        func: callable
+            aggregate function (default: np.mean)
+        no_data: float
+            no data value
+
+        Returns
+        -------
+        time_series: TimeSeries
+            binned time series
+        """
+        t_tree = np.array([grates.time.mjd(e) for e in bin_center_epochs])[:, np.newaxis]
+        t_query = np.array([grates.time.mjd(e) for e in self.epochs()])[:, np.newaxis]
+
+        tree = scipy.spatial.KDTree(t_tree)
+        _, indices = tree.query(t_query)
+
+        data = []
+        for k in range(t_tree.size):
+            values = [self.__data[i] for i in np.where(np.array(indices) == k)[0]]
+            data.append(func(values))
+            data[-1].epoch = grates.time.datetime(t_tree[k, 0])
+
+        return TimeSeries(data)
+
+    def append(self, other):
+
+        for _, d in other.items():
+            self.__data.append(d)
+
+        self.sort()
 
 class Trend:
     """
