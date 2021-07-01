@@ -223,6 +223,8 @@ def loadesm(file_name, min_degree=0, max_degree=None):
     tar = tarfile.open(file_name, 'r:gz')
     data = []
     for member in tar.getmembers():
+        if member.isdir():
+            continue
 
         gf = PotentialCoefficients(3.986004415E+14, 6378136.3)
         epoch = dt.datetime.strptime(member.name[-15:-4], '%Y%m%d_%H')
