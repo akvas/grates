@@ -117,7 +117,7 @@ class AutoregressiveModel:
         dim = transformed_coefficients.shape[0]
         coefficient_count = int(transformed_coefficients.shape[1] / transformed_coefficients.shape[0] - 1)
 
-        coefficients = tuple(-transformed_coefficients[:, k * dim:(k + 1) * dim] for k in range(coefficient_count))
+        coefficients = tuple(-W @ transformed_coefficients[:, k * dim:(k + 1) * dim] for k in range(coefficient_count))
 
         covariance_matrix = W @ W.T
 
