@@ -663,7 +663,7 @@ class RadialBasisFunctions:
     def __init__(self, point_distribution, K, min_degree, max_degree, GM=3.9860044150e+14, R=6.3781363000e+06):
 
         self.__K = K.copy()
-        self.point_distribution = point_distribution
+        self.point_distribution = point_distribution.copy()
         self.__min_degree = min_degree
         self.__max_degree = max_degree
         self.GM = GM
