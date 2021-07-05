@@ -117,6 +117,10 @@ class Grid(metaclass=abc.ABCMeta):
     def voronoi_cells(self):
         pass
 
+    @property
+    def colatitude(self):
+        return grates.utilities.colatitude(self.latitude, self.semimajor_axis, self.flattening)
+
     def is_compatible(self, other):
         """
         Checks whether the point distributions of two grids agree.
