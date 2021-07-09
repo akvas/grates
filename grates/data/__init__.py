@@ -140,3 +140,24 @@ def csr_rl06_mascon_grid():
     """
     with np.load(pkg_resources.resource_filename('grates', 'data/csr_rl06_mascon_grid.npz')) as f:
         return f['longitude'], f['latitude'], f['area'], f['polygon_points'], f['point_to_vertex'], f['polygon_index'], f['ocean_mask']
+
+
+def gsfc_rl06_mascon_grid():
+    """
+    Return all necessary data to construct the GSFC RL06 mascon grid.
+
+    Returns
+    -------
+    longitude : ndarray(m,)
+        longitude of polygon centroids in radians
+    latitude : ndarray(m,)
+        latitude of polygon centroid in radians
+    area : ndarray(m,)
+        polygon area
+    mascon_width : ndarray(m,)
+        longitudinal span of mascon
+    mascon_height : ndarray(m,)
+        latitudinal span of mascon
+    """
+    with np.load(pkg_resources.resource_filename('grates', 'data/gsfc_rl06_mascon_grid.npz')) as f:
+        return f['longitude'], f['latitude'], f['area'], f['mascon_width'], f['mascon_height']

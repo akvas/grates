@@ -1404,6 +1404,44 @@ class JPLMasconGridRL06(ReuterGrid):
         return grid
 
 
+class GSFCMasconGridRL06(IrregularGrid):
+    """
+    The grid on which the GSFC RL06 mascons are estimated. The surface elements are not Voronoi cells but rectangles in geographic coordinates.
+    The grid is given on the sphere.
+    """
+    def __init__(self):
+
+        lon, lat, area, mascon_width, mascon_height = grates.data.gsfc_rl06_mascon_grid()
+        super(GSFCMasconGridRL06, self).__init__(lon, lat, area, a=6378136.3, f=0)
+
+        lower_coordinate = lat - mascon_height * 0.5
+        upper_coordinate = lat + mascon_height * 0.5
+        mascon_height[lower_coordinate < -np.pi * 0.5] *= 0.5
+        mascon_height[upper_coordinate > np.pi * 0.5] *= 0.5
+        self.__surface_elements = []
+        for k in range(lon.size):
+            self.__surface_elements.append(RectangularSurfaceElement(lon[k] - mascon_width[k] * 0.5, lat[k] - mascon_height[k] * 0.5, mascon_width[k], mascon_height[k]))
+
+    def voronoi_cells(self):
+        """
+        Construct the Voronoi diagram of the grid points.
+
+        Returns
+        -------
+        cells : list of SurfaceElement instances
+            Voronoi cell for each grid point as surface element instance
+        """
+        return self.__surface_elements
+
+    def copy(self):
+        """Deep copy of a JPLRL06MasconGrid instance."""
+        grid = GSFCMasconGridRL06()
+        if self.values is not None:
+            grid.values = self.values.copy()
+        grid.epoch = self.epoch
+        return grid
+
+
 class Basin:
     """
     Simple class representation of an area enclosed by a polygon boundary, potentially with holes. No sanity checking
