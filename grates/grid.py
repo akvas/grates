@@ -1367,6 +1367,43 @@ class CSRMasconGridRL06(IrregularGrid):
         return cells
 
 
+class JPLMasconGridRL06(ReuterGrid):
+    """
+    The grid on which the JPL RL06 mascons are estimated. It is based on a Reuter grid of level 60.
+    The surface elements are not Voronoi cells but rectangles in geographic coordinates. The grid is given on the sphere.
+    """
+    def __init__(self):
+        super(JPLMasconGridRL06, self).__init__(60, a=6378136.3, f=0)
+
+        dlat = np.pi / self._ReuterGrid__level
+
+        self.__surface_elements = [RectangularSurfaceElement(self._ReuterGrid__longitudes[0][0] - np.pi, self._ReuterGrid__parallels[0] - dlat * 0.5, 2 * np.pi, dlat)]
+        for k in range(1, self._ReuterGrid__level):
+            point_count = self._ReuterGrid__longitudes[k].size
+            for i in range(point_count):
+                self.__surface_elements.append(RectangularSurfaceElement(self._ReuterGrid__longitudes[k][i] - np.pi / point_count, self._ReuterGrid__parallels[k] - dlat * 0.5, 2 * np.pi / point_count, dlat))
+        self.__surface_elements.append(RectangularSurfaceElement(self._ReuterGrid__longitudes[-1][0] - np.pi, self._ReuterGrid__parallels[-1] - dlat * 0.5, 2 * np.pi, dlat))
+
+    def voronoi_cells(self):
+        """
+        Construct the Voronoi diagram of the grid points.
+
+        Returns
+        -------
+        cells : list of SurfaceElement instances
+            Voronoi cell for each grid point as surface element instance
+        """
+        return self.__surface_elements
+
+    def copy(self):
+        """Deep copy of a JPLRL06MasconGrid instance."""
+        grid = JPLMasconGridRL06()
+        if self.values is not None:
+            grid.values = self.values.copy()
+        grid.epoch = self.epoch
+        return grid
+
+
 class Basin:
     """
     Simple class representation of an area enclosed by a polygon boundary, potentially with holes. No sanity checking
