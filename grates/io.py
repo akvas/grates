@@ -931,9 +931,9 @@ def loadgsfc06mascons(file_name, scale=1e-2, data_layer='cmwe'):
     data = []
     with h5py.File(file_name, 'r') as f:
 
-        lons = np.deg2rad(f['mascon']['lon_center'])
+        lons = np.deg2rad(f['mascon']['lon_center']).squeeze()
         lons[lons > np.pi] -= 2 * np.pi
-        lats = np.deg2rad(f['mascon']['lat_center'])
+        lats = np.deg2rad(f['mascon']['lat_center']).squeeze()
         areas = f['mascon']['area_km2'][:].squeeze()
         areas /= np.sum(areas) * 4 * np.pi
         base_grid = grates.grid.IrregularGrid(lons, lats, area_element=areas)
