@@ -1434,7 +1434,7 @@ class GSFCMasconGridRL06(IrregularGrid):
         return self.__surface_elements
 
     def copy(self):
-        """Deep copy of a JPLRL06MasconGrid instance."""
+        """Deep copy of a GSFCMasconGridRL06 instance."""
         grid = GSFCMasconGridRL06()
         if self.values is not None:
             grid.values = self.values.copy()
