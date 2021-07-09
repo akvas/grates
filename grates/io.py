@@ -914,7 +914,7 @@ def loadrl06mascongrids(file_name, scale=1e-2, data_layer='lwe_thickness'):
     return TimeSeries(data)
 
 
-def loadgsfcmascons(file_name, scale=1e-2, data_layer='cmwe'):
+def loadgsfc06mascons(file_name, scale=1e-2, data_layer='cmwe'):
     """
     Read GSFC RL06 mascon solutions from a HDF5 file. The mascon data is returned on the original estimation grid.
 
