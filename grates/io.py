@@ -17,6 +17,7 @@ from grates.grid import CSRMasconGridRL06, RegularGrid
 from grates.kernel import WaterHeight
 import scipy.spatial
 import netCDF4
+import h5py
 import os
 import contextlib
 import io
@@ -911,6 +912,43 @@ def loadrl06mascongrids(file_name, scale=1e-2, data_layer='lwe_thickness'):
         data.append(grid)
 
     return TimeSeries(data)
+
+
+def loadgsfcmascons(file_name, scale=1e-2, data_layer='cmwe'):
+    """
+    Read GSFC RL06 mascon solutions from a HDF5 file. The mascon data is returned on the original estimation grid.
+
+    Parameters
+    ----------
+    file_name : str
+        netCDF file name
+
+    Returns
+    -------
+    time_series : grates.gravityfield.TimeSeries
+        TimeSeries instance
+    """
+    data = []
+    with h5py.File(file_name, 'r') as f:
+
+        lons = np.deg2rad(f['mascon']['lon_center'])
+        lons[lons > np.pi] -= 2 * np.pi
+        lats = np.deg2rad(f['mascon']['lat_center'])
+        areas = f['mascon']['area_km2'][:].squeeze()
+        areas /= np.sum(areas) * 4 * np.pi
+        base_grid = grates.grid.IrregularGrid(lons, lats, area_element=areas)
+
+        times = f['time']['ref_days_middle'][:].squeeze()
+        epochs = [dt.datetime(2002, 1, 1) + dt.timedelta(days=tk - 1) for tk in times]
+        dataset = f['solution'][data_layer]
+        for k in range(dataset.shape[1]):
+            grid = base_grid.copy()
+            grid.values = dataset[:, k] * scale
+            grid.epoch = epochs[k]
+            data.append(grid)
+
+    return TimeSeries(data)
+
 
 
 def loadgsm(file_name):
