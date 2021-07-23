@@ -19,7 +19,15 @@ class SurfaceElement(metaclass=abc.ABCMeta):
     """
     Base interface for different shapes of surface tiles.
     """
-    pass
+    @property
+    @abc.abstractmethod
+    def longitude(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def latitude(self):
+        pass
 
 
 class RectangularSurfaceElement(SurfaceElement):
@@ -45,6 +53,14 @@ class RectangularSurfaceElement(SurfaceElement):
         self.width = width
         self.height = height
 
+    @property
+    def longitude(self):
+        return np.array((self.x, self.x + self.width, self.x + self.width, self.x))
+
+    @property
+    def latitude(self):
+        return np.array((self.y, self.y, self.y + self.height, self.y + self.height))
+
 
 class PolygonSurfaceElement(SurfaceElement):
     """
@@ -60,8 +76,15 @@ class PolygonSurfaceElement(SurfaceElement):
     __slots__ = ['xy']
 
     def __init__(self, x, y):
-
         self.xy = np.vstack((x, y)).T
+
+    @property
+    def longitude(self):
+        return self.xy[:, 0]
+
+    @property
+    def latitude(self):
+        return self.xy[:, 1]
 
 
 class Grid(metaclass=abc.ABCMeta):
