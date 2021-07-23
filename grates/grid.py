@@ -489,7 +489,7 @@ class RegularGrid(Grid):
         lon_edges = np.concatenate(([-np.pi], self.meridians[0:-1] + 0.5 * np.diff(self.meridians), [np.pi]))
         lat_edges = np.concatenate(([0.5 * np.pi], self.parallels[0:-1] + 0.5 * np.diff(self.parallels), [-0.5 * np.pi]))
 
-        self.__areas = 2.0 * (np.sin(np.diff(lat_edges) * 0.5) * np.cos(self.parallels))[:, np.newaxis] * np.diff(lon_edges) if area_elements is None else area_elements
+        self.__areas = 2.0 * (np.sin(np.abs(np.diff(lat_edges)) * 0.5) * np.cos(self.parallels))[:, np.newaxis] * np.diff(lon_edges) if area_elements is None else area_elements
         self.value_array = None
         self.epoch = None
 
