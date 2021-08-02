@@ -182,7 +182,7 @@ def legendre_polynomials(max_degree, colat, derivative=None):
     return polynomial_array
 
 
-def legendre_summation(coefficients, colat):
+def legendre_summation(coefficients, colat, derivative=None):
     """
     Compute the linear combination of Legendre polynomials using the Clenshaw algorithm [1]_.
 
@@ -192,11 +192,13 @@ def legendre_summation(coefficients, colat):
         coefficients of the linear combination
     colat : float, array_like
         co-latitude of evaluation points in radians
+    derivative : int or None
+        return the 1st (derivative=1) or 2nd (derivative=2)derivative with respect to t (default: None)
 
     Returns
     -------
     sum : array_like
-        evaluated linear combination (same shape as colat
+        evaluated linear combination (same shape as colat)
 
      References
     ----------
@@ -205,19 +207,43 @@ def legendre_summation(coefficients, colat):
             Other Aids to Computation. 9 (51): 118. doi:10.1090/S0025-5718-1955-0071856-0.
 
     """
-    t = np.cos(np.atleast_1d(colat))
-
     b2 = 0
     b1 = 0
-    for k in np.arange(coefficients.size - 1, 0, -1):
-        alpha = np.sqrt((2 * k + 1) * (2 * k + 3)) / (k + 1)
-        beta = -np.sqrt((2 * k + 5) / (2 * k + 1)) * (k + 1) / (k + 2)
 
-        bk = coefficients[k] + alpha * t * b1 + beta * b2
-        b2 = b1
-        b1 = bk
+    t = np.cos(np.atleast_1d(colat))
 
-    return coefficients[0] + np.sqrt(3) * t * b1 - 0.5 * np.sqrt(5) * b2
+    if derivative is None:
+        for k in np.arange(coefficients.size - 1, 0, -1):
+            alpha = np.sqrt((2 * k + 1) * (2 * k + 3)) / (k + 1)
+            beta = -np.sqrt((2 * k + 5) / (2 * k + 1)) * (k + 1) / (k + 2)
+
+            bk = coefficients[k] + alpha * t * b1 + beta * b2
+            b2 = b1
+            b1 = bk
+
+        return coefficients[0] + np.sqrt(3) * t * b1 - 0.5 * np.sqrt(5) * b2
+
+    elif derivative == 1:
+        for k in np.arange(coefficients.size - 1, 0, -1):
+            alpha = np.sqrt(2 * k + 3) * np.sqrt(2 * k + 1) / k;
+            beta = -np.sqrt((2 * k + 5) / (2 * k + 1)) * (k + 2) / (k + 1)
+
+            bk = coefficients[k] + alpha * t * b1 + beta * b2
+            b2 = b1
+            b1 = bk
+
+        return np.sqrt(3) * b1
+
+    elif derivative == 2:
+        for k in np.arange(coefficients.size - 1, 1, -1):
+            alpha = np.sqrt(2 * k + 3) * np.sqrt(2 * k + 1) / (k - 1);
+            beta = -np.sqrt((2 * k + 5) / (2 * k + 1)) * (k + 3) / k
+
+            bk = coefficients[k] + alpha * t * b1 + beta * b2
+            b2 = b1
+            b1 = bk
+
+        return 3 * np.sqrt(5) * b1
 
 
 def trigonometric_functions(max_degree, lon):
