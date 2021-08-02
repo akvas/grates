@@ -115,7 +115,7 @@ def legendre_functions_per_order(max_degree, order, colat):
     return function_array
 
 
-def legendre_polynomials(max_degree, colat):
+def legendre_polynomials(max_degree, colat, derivative=None):
     """
     Fully normalized Legendre polynomials.
 
@@ -125,6 +125,8 @@ def legendre_polynomials(max_degree, colat):
         maximum spherical harmonic degree to compute
     colat : float, array_like(m,)
         co-latitude of evaluation points in radians
+    derivative : int or None
+        return the 1st (derivative=1) or 2nd (derivative=2)derivative with respect to t (default: None)
 
     Returns
     -------
@@ -133,20 +135,49 @@ def legendre_polynomials(max_degree, colat):
         Legendre polynomial of degree n and order m for all points.
 
     """
-    if max_degree == 0:
-        return np.ones((np.atleast_1d(colat).size, 1))
-
     t = np.cos(np.atleast_1d(colat))
     polynomial_array = np.empty((t.size, max_degree + 1))
 
-    polynomial_array[:, 0] = 1  # initial values for recursion
-    polynomial_array[:, 1] = np.sqrt(3) * t
+    if derivative is None:
+        polynomial_array[:, 0] = 1
+        if max_degree == 0:
+            return polynomial_array
+        polynomial_array[:, 1] = np.sqrt(3) * t
 
-    for n in range(2, max_degree + 1):
-        polynomial_array[:, n] = np.sqrt((2.0 * n - 1.0) * (2.0 * n + 1.0)) / n * \
-            t * polynomial_array[:, n - 1] - \
-            np.sqrt((2.0 * n + 1.0) / (2.0 * n - 3.0)) * (n - 1.0) / n * \
-            polynomial_array[:, n - 2]
+        for n in range(2, max_degree + 1):
+            polynomial_array[:, n] = np.sqrt((2.0 * n - 1.0) * (2.0 * n + 1.0)) / n * \
+                t * polynomial_array[:, n - 1] - \
+                np.sqrt((2.0 * n + 1.0) / (2.0 * n - 3.0)) * (n - 1.0) / n * \
+                polynomial_array[:, n - 2]
+
+    elif derivative == 1:
+        polynomial_array[:, 0] = 0
+        if max_degree == 0:
+            return polynomial_array
+        polynomial_array[:, 1] = np.sqrt(3)
+
+        for n in range(2, max_degree + 1):
+            polynomial_array[:, n] = np.sqrt((2.0 * n - 1.0) * (2.0 * n + 1.0)) / (n - 1.0) * \
+                t * polynomial_array[:, n - 1] - \
+                np.sqrt((2.0 * n + 1.0) / (2.0 * n - 3.0)) * n / (n - 1.0) * \
+                polynomial_array[:, n - 2]
+
+    elif derivative == 2:
+        polynomial_array[:, 0] = 0
+        if max_degree == 0:
+            return polynomial_array
+        polynomial_array[:, 1] = 0
+        if max_degree == 1:
+            return polynomial_array
+        polynomial_array[:, 2] = 3 * np.sqrt(5)
+
+        for n in range(3, max_degree + 1):
+            polynomial_array[:, n] = np.sqrt((2.0 * n - 1.0) * (2.0 * n + 1.0)) / (n - 2.0) * \
+                t * polynomial_array[:, n - 1] - \
+                np.sqrt((2.0 * n + 1.0) / (2.0 * n - 3.0)) * (n + 1.0) / (n - 2.0) * \
+                polynomial_array[:, n - 2]
+    else:
+        raise ValueError('Derivative must be None, 1 or 2. Got {} instead.'.format(derivative))
 
     return polynomial_array
 
