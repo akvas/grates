@@ -10,6 +10,8 @@ import abc
 import grates.utilities
 import grates.gravityfield
 import grates.grid
+import scipy.optimize
+import functools
 
 
 def get_kernel(kernel_name):
@@ -340,6 +342,42 @@ class IsotropicKernel(metaclass=abc.ABCMeta):
 
         return psi, mtf
 
+    def spatial_resolution(self, min_degree, max_degree, R=6378136.3, threshold=1000):
+        """
+        Compute the spatial resolution of the kernel. Two Dirac pulses are shifted on the sphere until a local minimum in the connecting line between the two occurs.
+
+        Parameters
+        ----------
+        min_degree : int
+            minimum evaluation degree
+        max_degree : int
+            maximum evaluation degree
+        R : float
+            radius of the evaluation sphere in meters
+        threshold : float
+            algorithm stops once the search window is smaller than threshold (given in meters)
+
+        Returns
+        -------
+        resolution : float
+            distance in meters between two Dirac pulses when a local minimum occurs
+        """
+        def kernel_sum(psi0, psi):
+            return self.evaluate(min_degree, max_degree, psi).squeeze() + self.evaluate(min_degree, max_degree, psi0 - psi).squeeze()
+
+        def brute_force(min_psi, max_psi):
+            if (max_psi - min_psi) * R < threshold:
+                return max_psi * 0.5 + min_psi * 0.5
+
+            psi0 = np.linspace(min_psi, max_psi, 3)
+            for k in range(1, psi0.size):
+                res = scipy.optimize.fminbound(functools.partial(kernel_sum, (psi0[k],)), 0, psi0[k])
+                has_local_minimum = np.abs(res - psi0[k]) * R > threshold and np.abs(res) * R > threshold
+                if has_local_minimum:
+                    return brute_force(psi0[k - 1], psi0[k])
+
+        return brute_force(0, np.pi) * R
+
 
 class WaterHeight(IsotropicKernel):
     """
@@ -630,3 +668,83 @@ class AnisotropicKernel:
             mtf[k] = 0 if np.min(kn) >= edge_threshold else 1 - kn[int(kn.size // 2)] / np.max(kn)
 
         return mtf
+
+    def spatial_resolution(self, central_longitude=0, central_latitude=0, direction='north_south', R=6378136.3, threshold=1000):
+        """
+        Compute the spatial resolution of the kernel. Two Dirac pulses are shifted on the sphere until a local minimum in the connecting line between the two occurs.
+        If direction 'east_west' is chosen, the Dirac pulses are shifted along a circle of constant latitude. This will lead to convergence issues for points near the poles.
+
+        Parameters
+        ----------
+        min_degree : int
+            minimum evaluation degree
+        max_degree : int
+            maximum evaluation degree
+        direction : str
+            direction of evaluation ('north_south', 'east_west')
+        R : float
+            radius of the evaluation sphere in meters
+        threshold : float
+            algorithm stops once the search window is smaller than threshold (given in meters)
+
+        Returns
+        -------
+        resolution : float
+            distance in meters between two Dirac pulses when a local minimum occurs
+        """
+        if direction == 'north_south':
+            cs = grates.utilities.trigonometric_functions(self.__max_degree, central_longitude)
+
+            def kernel_sum(u12K, cs, theta):
+                Ynm = grates.utilities.legendre_functions(self.__max_degree, theta) * cs
+                return np.sum(u12K * grates.utilities.ravel_coefficients(Ynm, self.__min_degree, self.__max_degree))
+
+            def brute_force(min_psi, max_psi):
+                if (max_psi - min_psi) * R < threshold:
+                    return max_psi * 0.5 + min_psi * 0.5
+
+                psi0 = np.linspace(min_psi, max_psi, 3)
+                for k in range(1, psi0.size):
+
+                    theta1 = np.pi * 0.5 - central_latitude - psi0[k] * 0.5
+                    theta2 = np.pi * 0.5 - central_latitude + psi0[k] * 0.5
+
+                    Ynm = grates.utilities.spherical_harmonics(self.__max_degree, (theta1, theta2), central_longitude)
+                    u12K = np.sum(grates.utilities.ravel_coefficients(Ynm, self.__min_degree, self.__max_degree), axis=0) @ self.__matrix
+
+                    res = scipy.optimize.fminbound(functools.partial(kernel_sum, u12K, cs), theta1, theta2)
+                    has_local_minimum = np.abs(res - theta1) * R > threshold and np.abs(res - theta2) * R > threshold
+                    if has_local_minimum:
+                        return brute_force(psi0[k - 1], psi0[k])
+
+            return brute_force(0, np.pi) * R
+
+        elif direction == 'east_west':
+            pnm = grates.utilities.legendre_functions(self.__max_degree, np.pi * 0.5 - central_latitude)
+
+            def kernel_sum(u12K, pnm, lon):
+                Ynm = pnm * grates.utilities.trigonometric_functions(self.__max_degree, lon)
+                return np.sum(u12K * grates.utilities.ravel_coefficients(Ynm, self.__min_degree, self.__max_degree))
+
+            def brute_force(min_psi, max_psi):
+                if (max_psi - min_psi) * R * np.cos(central_latitude) < threshold:
+                    return max_psi * 0.5 + min_psi * 0.5
+
+                psi0 = np.linspace(min_psi, max_psi, 3)
+                for k in range(1, psi0.size):
+
+                    lon1 = central_longitude - psi0[k] * 0.5
+                    lon2 = central_longitude + psi0[k] * 0.5
+
+                    Ynm = grates.utilities.spherical_harmonics(self.__max_degree, np.pi * 0.5 - central_latitude, (lon1, lon2))
+                    u12K = np.sum(grates.utilities.ravel_coefficients(Ynm, self.__min_degree, self.__max_degree), axis=0) @ self.__matrix
+
+                    res = scipy.optimize.fminbound(functools.partial(kernel_sum, u12K, pnm), lon1, lon2)
+                    has_local_minimum = np.abs(res - lon1) * R * np.cos(central_latitude) > threshold and np.abs(res - lon2) * R * np.cos(central_latitude) > threshold
+                    if has_local_minimum:
+                        return brute_force(psi0[k - 1], psi0[k])
+
+            return brute_force(0, np.pi) * np.cos(central_latitude) * R
+
+        else:
+            raise ValueError('Argument <direction> must be one of "north_south" or "east_west". Got {0}.'.format(direction))
