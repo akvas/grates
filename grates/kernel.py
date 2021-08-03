@@ -261,9 +261,10 @@ class IsotropicKernel(metaclass=abc.ABCMeta):
         kernel : ndarray(m,)
             kernel evaluated at the given spherical distance
         """
-        kn = self.coefficients(min_degree, max_degree, r, colat) * np.sqrt(2 * np.arange(min_degree, max_degree + 1) + 1)
+        kn = np.zeros(max_degree + 1)
+        kn[min_degree:] = self.coefficients(min_degree, max_degree, r, colat)[0, :] * np.sqrt(2 * np.arange(min_degree, max_degree + 1) + 1)
 
-        return grates.utilities.legendre_summation(kn[0, :], psi)
+        return grates.utilities.legendre_summation(kn, psi)
 
     def evaluate_grid(self, min_degree, max_degree, source_longitude, source_latitude, eval_longitude, eval_latitude, r=6378136.3, colat=0):
         """
