@@ -55,6 +55,12 @@ def get_kernel(kernel_name):
     elif kernel_name.lower() in ['anomaly', 'gravity_anomaly']:
         ker = grates.kernel.GravityAnomaly()
 
+    elif kernel_name.lower() in ['deformation', 'vertical_derformation']:
+        ker = grates.kernel.VerticalDeformation()
+
+    elif kernel_name.lower() in ['uplift']:
+        ker = grates.kernel.Uplift()
+
     else:
         raise ValueError("Unrecognized kernel '{0:s}'.".format(kernel_name))
 
@@ -520,15 +526,52 @@ class UpwardContinuation(IsotropicKernel):
     ----------
     R : float
         reference radius
+    kernel : str
+        kernel to be upward-continued
     """
-    def __init__(self, R=6.3781363000e+06):
+    def __init__(self, R=6.3781363000e+06, kernel='potential'):
 
+        self.__kernel = grates.kernel.get_kernel(kernel)
         self.__R = R
 
     def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
         """Kernel coefficients for degrees min_degree to max_degree."""
-        return np.power(np.atleast_1d(self.__R / r)[:, np.newaxis], np.arange(min_degree, max_degree + 1, dtype=int) + 1)
+        return np.power(np.atleast_1d(self.__R / r)[:, np.newaxis], np.arange(min_degree, max_degree + 1, dtype=int) + 1) * self.__kernel(min_degree, max_degree, r, colat)
 
+
+class VerticalDeformation(IsotropicKernel):
+    """
+    Vertical deformation kernel (elastic response).
+
+    Parameters
+    ----------
+    frame : str
+        one of CE, CM, CF
+    """
+    def __init__(self, frame='CE'):
+
+        load_love_numbers, deformation_love_numbers, _ = grates.data.load_love_numbers(frame)
+
+        self.__kn = deformation_love_numbers / (1 + load_love_numbers)
+
+    def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
+        """Kernel coefficients for degrees min_degree to max_degree."""
+        return grates.gravityfield.GRS80.normal_gravity(r, colat)[:, np.newaxis] / self.__kn[min_degree:max_degree + 1]
+
+
+class Uplift(IsotropicKernel):
+    """
+    Approximate uplift after [1]_.
+
+    .. [1] Wahr J, Wingham D, Bentley C. A method of combining ICESat and GRACE satellite data to constrain Antarctic mass
+                balance Journal of Geophysical Research: Solid Earth. 105: 16279-16294. DOI: 10.1029/2000Jb900113
+    """
+    def __init__(self):
+        pass
+
+    def _coefficients(self, min_degree, max_degree, r=6378136.3, colat=0):
+        """Kernel coefficients for degrees min_degree to max_degree."""
+        return 2 * grates.gravityfield.GRS80.normal_gravity(r, colat)[:, np.newaxis] / (2 * np.arange(min_degree, max_degree + 1, dtype=float) + 1)
 
 class AnisotropicKernel:
     """
