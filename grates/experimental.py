@@ -15,6 +15,7 @@ import grates.utilities
 import netCDF4
 import grates.grid
 import grates.filter
+import pickle
 
 
 class BlockedVDK(grates.filter.OrderWiseFilter):
@@ -389,3 +390,37 @@ def unscented_transform(func, x_mean, x_covariance, alpha=1e-3, kappa=0, beta=2)
         y_covariance = ((sigma_out - y_mean[:, np.newaxis]) * w_covariance) @ (sigma_out - y_mean[:, np.newaxis]).T
 
         return y_mean, y_covariance
+
+
+def fit_kernel_coefficients(lambda_n, min_degree, max_degree, continuity_constraint=False):
+
+    l = 2 * np.log(lambda_n[min_degree:max_degree + 1, 0])
+    A = np.vstack((np.full(l.size, 2), -np.log(np.arange(min_degree, max_degree + 1)))).T
+
+    if continuity_constraint:
+        b = 2 * np.log(lambda_n[max_degree, 0])
+        B = np.array([2, -np.log(max_degree)])[:, np.newaxis]
+
+        N = A.T @ A
+        n = A.T @ l
+
+        N_aug = np.vstack((np.hstack((N, B)), np.hstack((B.T, np.zeros((1, 1))))))
+        n_aug = np.hstack((n, b))
+
+        x_hat = np.linalg.solve(N_aug, n_aug)
+    else:
+        x_hat = np.linalg.pinv(A) @ l
+
+    return np.exp(x_hat[0]), x_hat[1]
+
+
+def savegrid(file_name, grid):
+
+    with open(file_name, 'wb') as f:
+        pickle.dump(grid, f)
+
+
+def loadgrid(file_name):
+
+    with open(file_name, 'rb') as f:
+        return pickle.load(f)
