@@ -342,18 +342,21 @@ class Grid(metaclass=abc.ABCMeta):
             neighbours[simplex[2]].update(simplex[0:2])
 
         neighbours_sorted = [None for _ in range(self.size)]
-        E = np.vstack((-X[:, 1], X[:, 0], np.zeros(self.size))).T
-        N = np.vstack((-X[:, 2] * X[:, 0], -X[:, 2] * X[:, 1], np.sum(X[:, 0:2] * X[:, 0:2], axis=1))).T / (np.sqrt(np.sum(X * X, axis=1)))[:, np.newaxis]
+
+        lons = self.longitude
+        lats = self.latitude
         for k in range(self.size):
             unsorted_indices = tuple(neighbours[k])
+
             d = X[unsorted_indices, :] - X[k, :]
-            east_projection = d @ E[k, :]
-            north_projection = d @ N[k, :]
 
-            idx = np.argsort(north_projection)[::-1]
-            idx2 = np.argsort(east_projection[idx])
+            R = np.vstack( ( (-np.sin(lons[k]), np.cos(lons[k]), 0),
+                             (-np.sin(lats[k]) * np.cos(lons[k]), -np.sin(lats[k]) * np.sin(lons[k]), np.cos(lats[k]) ) ) )
 
-            neighbours_sorted[k] = np.array(unsorted_indices)[idx][idx2]
+            xy = R @ d.T
+
+            idx = np.lexsort((xy[:, 0], xy[:, 1]))
+            neighbours_sorted[k] = np.array(unsorted_indices)[idx]
 
         return neighbours_sorted
 
