@@ -718,6 +718,42 @@ class RadialBasisFunctions:
 
         return coefficients
 
+    def to_potential_coefficients_matrix(self, blocking_factor=256):
+        """
+        Compute matrix to convert the radial basis functions coefficients to spherical harmonics.
+
+        Parameters
+        ----------
+        blocking_factor : int
+            block size into which to split the nodal points (this is only to keep memory consumption low)
+
+        Returns
+        -------
+        transformation_matrix : ndarray(m, n)
+            matrix to convert the radial basis functions coefficients to spherical harmonics
+        """
+        target_sequence = grates.gravityfield.CoefficientSequenceDegreeWise(self.__min_degree, self.__max_degree)
+
+        F = np.empty((target_sequence.coefficient_count, self.point_distribution.size))
+
+        start_index = 0
+        while start_index < self.point_distribution.size:
+            colatitude = grates.utilities.colatitude(self.point_distribution.latitude[start_index:min(start_index + blocking_factor, self.values.size)], self.point_distribution.semimajor_axis, self.point_distribution.flattening)
+            radius = grates.utilities.geocentric_radius(self.point_distribution.latitude[start_index:min(start_index + blocking_factor, self.values.size)], self.point_distribution.semimajor_axis, self.point_distribution.flattening)
+
+            Ynm = grates.utilities.spherical_harmonics(self.__max_degree, colatitude, self.point_distribution.longitude[start_index:min(start_index + blocking_factor, self.values.size)])
+            kn = np.power((self.R / radius)[:, np.newaxis], np.arange(self.__max_degree + 1, dtype=int) + 1)
+            Ynm[:, :, 0] *= kn
+            for m in range(1, self.__max_degree + 1):
+                Ynm[:, m:, m] *= kn[:, m:]
+                Ynm[:, m - 1, m:] *= kn[:, m:]
+            Ynm *= self.__K[np.newaxis, :, :]
+
+            F[:, start_index:min(start_index + blocking_factor, self.values.size)] = grates.utilities.ravel_coefficients(Ynm, self.__min_degree, self.__max_degree).T
+            start_index += blocking_factor
+
+        return F
+
     def to_grid(self, grid=grates.grid.GeographicGrid(), kernel='ewh'):
         """
         Compute gridded values from radial basis functions.
