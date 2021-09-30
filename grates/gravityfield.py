@@ -671,6 +671,14 @@ class RadialBasisFunctions:
         self.epoch = None
         self.values = np.zeros((self.point_distribution.size))
 
+    def copy(self):
+        """Return a deep copy of the RadialBasisFunctions instance."""
+        rbf = RadialBasisFunctions(self.point_distribution.copy(), self.__K, self.__min_degree, self.__max_degree, self.GM, self.R)
+        rbf.epoch = self.epoch
+        rbf.values = self.values.copy()
+
+        return rbf
+
     @property
     def values(self):
         return self.point_distribution.values
