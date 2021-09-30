@@ -1147,3 +1147,128 @@ def compute_variance_factors(normal_equations, combined_normals, solution, varia
         vc.append(ePe / r)
 
     return np.array(vc)
+
+
+class UnscentedTransformSymmetric:
+    """
+    Unscented transform based on a symmetric sigma point set defined in [1]_.
+
+    References
+    ----------
+    .. [1] S. J. Julier and J. K. Uhlmann, “Unscented filtering and nonlinear estimation,”
+           Proc. of the IEEE, vol. 92, no. 3, pp. 401–422, 2004.
+
+    Parameters
+    ----------
+    dim : int
+        dimension of the random variable
+    w0 : float
+        weight parameter (w0 < 1)
+    """
+    def __init__(self, dim, w0):
+
+        self.w0 = w0
+        self.dim = dim
+
+        self.__w = np.full(self.set_size, 0.5 * (1 - self.w0) / self.dim)
+        self.__w[0] = self.w0
+
+        self.__s = np.full(self.set_size, np.sqrt(self.dim / (1 - self.w0)))
+        self.__s[0] = 0
+
+    @property
+    def set_size(self):
+        """Return the number of sigma points."""
+        return 2 * self.dim + 1
+
+    def weights(self):
+        """Return the weights for mean and covariance computation from sigma points."""
+        return self.__w, self.__w
+
+    def sigma_points(self, x0, eigen_values, eigen_vectors):
+        """
+        Generate a set of sigma points based on a mean vector and an Eigenvalue decomposition.
+
+        Parameters
+        ----------
+        x0 : ndarray(n,)
+            mean value around which the sigma points are distributed
+        eigen_values : ndarray(p,)
+            eigenvalues of the input covariance matrix
+        eigen_vectors : ndarray(n, p)
+            eigenvectors of the input covariance matrix
+
+        Returns
+        -------
+        sigma_points : ndarray(n, k)
+            set of k sigma points
+        """
+        s = np.sqrt(eigen_values)
+
+        S = np.empty((x0.size, self.set_size))
+        S[:, 0] = x0
+        for i in range(self.dim):
+            S[:, i + 1] = x0 + self.__s[i + 1] * s[i] * eigen_vectors[:, i]
+            S[:, self.dim + i + 1] = x0 + self.__s[self.dim + i + 1] * s[i] * eigen_vectors[:, i]
+
+        return S
+
+    def average(self, sigma_points):
+        """
+        Compute average from sigma points.
+
+        Parameters
+        ----------
+        sigma_points : ndarray(n, p)
+            p sigma points of dimension n
+
+        Returns
+        -------
+        x : ndarray(n,)
+            estimated mean value
+        """
+        w, _ = self.weights()
+
+        return sigma_points @ w
+
+    def sigma_point_covariance(self, sigma_points):
+        """
+        Compute covariance matrix from sigma points.
+
+        Parameters
+        ----------
+        sigma_points : ndarray(n, p)
+            p sigma points of dimension n
+
+        Returns
+        -------
+        C : ndarray(n, n)
+            estimated covariance matrix
+        """
+        _, w = self.weights()
+
+        return (sigma_points * w[np.newaxis, :]) @ sigma_points.T
+
+
+def teigh(M, eigenvalue_count):
+    """
+    Truncated Eigenvalue decomposition of a symmetric/hermitian matrix.
+
+    Parameters
+    ----------
+    M : ndarray
+        symmetric/hermitian matrix
+    eigenvalue_count : int
+        number of the largest eigenvalues and corresponding eigenvectors to be computed
+
+    Returns
+    -------
+    w : ndarray
+        the selected number of eigenvalues in descending order
+    v : ndarray
+        the corresponding eigenvectors
+    """
+    n = M.shape[0]
+    e, v = la.eigh(M, lower=False, subset_by_index=(n - eigenvalue_count, n - 1), driver='evx')
+
+    return e[::-1], v[:, ::-1]
