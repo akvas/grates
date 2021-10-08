@@ -1553,6 +1553,31 @@ class Basin:
 
         return is_inside_polygon
 
+    @staticmethod
+    def from_extent(lon_min, lat_min, lon_max, lat_max):
+        """
+        Create basin polygon from  lower left and upper right points.
+
+        Parameters
+        ----------
+
+        lon_min: float
+            minimum longitude in radians
+        lat_min: float
+            minimum latitude in radians
+        lon_max: float
+            maximum longitude in radians
+        lat_max: float
+            maximum latitude in radians
+        """
+        poly = np.empty((4, 2))
+        poly[0, :] = (lon_min, lat_min)
+        poly[1, :] = (lon_min, lat_max)
+        poly[2, :] = (lon_max, lat_max)
+        poly[3, :] = (lon_max, lat_min)
+
+        return Basin(poly)
+
 
 def winding_number(polygon, x, y):
     """
