@@ -1292,8 +1292,9 @@ class GeodesicGrid(IrregularGrid):
         xyz = np.asarray(points_cartesian)
         lons = np.arctan2(xyz[:, 1], xyz[:, 0])
         lats = np.arctan2(xyz[:, 2], (1 - f) ** 2 * np.sqrt(1 - xyz[:, 2] ** 2))
+        idx = np.lexsort((lons, -lats))
 
-        super(GeodesicGrid, self).__init__(lons, lats, np.full(lats.size, 4 * np.pi / lats.size), a, f)
+        super(GeodesicGrid, self).__init__(lons[idx], lats[idx], np.full(lats.size, 4 * np.pi / lats.size), a, f)
         self.__level = level
 
     def copy(self):
