@@ -1272,3 +1272,43 @@ def teigh(M, eigenvalue_count):
     e, v = la.eigh(M, lower=False, subset_by_index=(n - eigenvalue_count, n - 1), driver='evx')
 
     return e[::-1], v[:, ::-1]
+
+
+def trsvd(A, singular_value_count, iteration_count=5):
+    """
+    Randomized truncated SVD after [1]_.
+
+    References
+    ----------
+    .. [1] Finding Structure with Randomness: Probabilistic Algorithms for Constructing Approximate Matrix Decompositions
+           N. Halko, P. G. Martinsson, and J. A. Tropp, SIAM Review 2011 53:2, 217-288
+
+    Parameters
+    ----------
+    singular_value_count : int
+        number of singular values to be computed
+    iteration_count : int
+        number of iterations to be performed
+
+    Returns
+    -------
+    U : ndarray
+        Unitary matrix having left singular vectors as columns
+    s : ndarray
+        The singular values, sorted in non-increasing order
+    Vt : ndarray
+        Unitary matrix having right singular vectors as rows
+    """
+    omega = np.random.randn(A.shape[1], singular_value_count)
+    B = A @ omega
+    Q, R = np.linalg.qr(B, mode='reduced')
+    for _ in range(iteration_count):
+        B = A.T @ Q
+        Q, R = np.linalg.qr(B, mode='reduced')
+        B = A @ Q
+        Q, R = np.linalg.qr(B, mode='reduced')
+
+    B = Q.T @ A
+    U, s, Vt = np.linalg.svd(B)
+    U = Q @ U
+    return U, s, Vt
