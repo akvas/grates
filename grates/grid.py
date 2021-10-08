@@ -323,9 +323,14 @@ class Grid(metaclass=abc.ABCMeta):
 
         return point_index
 
-    def point_neighbours(self):
+    def point_neighbours(self, level=1):
         """
         Return the indices of the neighbours of each point as a list of arrays.
+
+        Parameters
+        ----------
+        level : int
+            level of neighbourhood (level 1 only returns the direct neighbours, level 2 additionally the neighbours of the level 1 neighbours and so on)
 
         Returns
         -------
@@ -341,6 +346,14 @@ class Grid(metaclass=abc.ABCMeta):
             neighbours[simplex[1]].update(simplex[0::2])
             neighbours[simplex[2]].update(simplex[0:2])
 
+        for _ in range(1, level):
+            new_neighbours = [set() for _ in range(self.size)]
+            for k in range(len(neighbours)):
+                for ni in neighbours[k]:
+                    new_neighbours[k].add(ni)
+                    new_neighbours[k].update(neighbours[ni])
+            neighbours = new_neighbours
+
         neighbours_sorted = [None for _ in range(self.size)]
 
         lons = self.longitude
@@ -355,7 +368,7 @@ class Grid(metaclass=abc.ABCMeta):
 
             xy = R @ d.T
 
-            idx = np.lexsort((xy[:, 0], xy[:, 1]))
+            idx = np.lexsort((xy[0, :], xy[1, :]))
             neighbours_sorted[k] = np.array(unsorted_indices)[idx]
 
         return neighbours_sorted
