@@ -275,3 +275,33 @@ def set_axes_width(ax=None, width=None):
 
     ax.figure.set_size_inches(fw, fh)
     ax.figure.canvas.draw()
+
+
+def contour_colors(cmap, levels, insignificance_bound=None, insignificance_color=None):
+    """
+    Compute colors and ticks for contour plots from a colormap and levels.
+
+    Parameters
+    ----------
+    cmap : Colormap
+        a Colormap instance
+    levels : list or ndarray
+        containes with the level boundaries
+    insignificance_bound : float
+        levels with midpoints below insignifance bound will be colored with insignificance_color
+    insignificance_bound : name or rgb/a tuple
+        color for levels which are below the insignificance_bound
+    """
+    normalized_levels = (levels - np.min(levels)) / (np.max(levels) - np.min(levels))
+    colors = []
+    ticks = set()
+    for k in range(len(levels) - 1):
+
+        level_mid = levels[k] * 0.5 + levels[k + 1] * 0.5
+        if insignificance_bound is not None and np.abs(level_mid) < insignificance_bound:
+            colors.append(insignificance_color)
+        else:
+            colors.append(cmap(normalized_levels[k] * 0.5 + normalized_levels[k + 1] * 0.5))
+            ticks.update((levels[k], levels[k + 1]))
+
+    return colors, sorted(list(ticks))
