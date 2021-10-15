@@ -1301,12 +1301,12 @@ def trsvd(A, singular_value_count, iteration_count=5):
     """
     omega = np.random.randn(A.shape[1], singular_value_count)
     B = A @ omega
-    Q, R = np.linalg.qr(B, mode='reduced')
+    Q, _ = np.linalg.qr(B, mode='reduced')
     for _ in range(iteration_count):
         B = A.T @ Q
-        Q, R = np.linalg.qr(B, mode='reduced')
+        Q, _ = np.linalg.qr(B, mode='reduced')
         B = A @ Q
-        Q, R = np.linalg.qr(B, mode='reduced')
+        Q, _ = np.linalg.qr(B, mode='reduced')
 
     B = Q.T @ A
     U, s, Vt = np.linalg.svd(B)
