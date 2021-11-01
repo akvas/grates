@@ -9,12 +9,12 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.patches
 import matplotlib.collections
-import grates.utilities
-import grates.grid
-import grates.gravityfield
 import cartopy as ctp
 import numpy as np
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+import grates.utilities
+import grates.grid
+import grates.gravityfield
 
 
 class StyleContext:

@@ -5,14 +5,14 @@
 Point distributions on the ellipsoid.
 """
 
-import numpy as np
 import abc
+import numpy as np
+from scipy.special import roots_legendre
+import scipy.spatial
 import grates.utilities
 import grates.kernel
 import grates.gravityfield
 import grates.data
-from scipy.special import roots_legendre
-import scipy.spatial
 
 
 class SurfaceElement(metaclass=abc.ABCMeta):

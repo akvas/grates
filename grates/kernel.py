@@ -5,13 +5,13 @@
 Harmonic integral kernels.
 """
 
-import numpy as np
+import functools
 import abc
+import numpy as np
+import scipy.optimize
 import grates.utilities
 import grates.gravityfield
 import grates.grid
-import scipy.optimize
-import functools
 
 
 def get_kernel(kernel_name):

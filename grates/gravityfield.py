@@ -6,10 +6,10 @@ Representations of Earth's gravity field.
 """
 
 import numpy as np
+import scipy.spatial
 import grates.grid
 import grates.kernel
 import grates.utilities
-import scipy.spatial
 
 
 def degree_indices(n, max_order=None):

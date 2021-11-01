@@ -5,23 +5,23 @@
 File I/O for gravity field representations and gridded data.
 """
 
+import io
+import os
 import datetime as dt
 import tarfile
 import abc
 import gzip
 import bz2
+import contextlib
 import numpy as np
+import scipy.spatial
+from netCDF4 import Dataset
+import h5py
+import yaml
 import grates
 from grates.gravityfield import PotentialCoefficients, TimeSeries, SurfaceMasCons
 from grates.grid import CSRMasconGridRL06, RegularGrid
 from grates.kernel import WaterHeight
-import scipy.spatial
-import netCDF4
-import h5py
-import os
-import contextlib
-import io
-import yaml
 
 
 class InputFile:
@@ -319,23 +319,14 @@ class SINEXFile:
 
         self.f.write(header_line + os.linesep)
 
-    def write_reference(self, description=None, output=None, contact=None, software=None, hardware=None, input=None):
+    def write_reference(self, reference_dict):
         """
         Write the mandatory FILE/REFERENCE block.
         """
         self.f.write('+FILE/REFERENCE' + os.linesep)
-        if description is not None:
-            self.f.write(' {0:18s} {1:60s}'.format('DESCRIPTION', description) + os.linesep)
-        if output is not None:
-            self.f.write(' {0:18s} {1:60s}'.format('OUTPUT', output) + os.linesep)
-        if contact is not None:
-            self.f.write(' {0:18s} {1:60s}'.format('CONTACT', contact) + os.linesep)
-        if software is not None:
-            self.f.write(' {0:18s} {1:60s}'.format('SOFTWARE', software) + os.linesep)
-        if hardware is not None:
-            self.f.write(' {0:18s} {1:60s}'.format('HARDWARE', hardware) + os.linesep)
-        if input is not None:
-            self.f.write(' {0:18s} {1:60s}'.format('INPUT', input) + os.linesep)
+        for keyword, value in reference_dict.items():
+            if keyword.upper() in ['DESCRIPTION', 'OUTPUT', 'CONTACT', 'SOFTWARE', 'HARDWARE', 'INPUT']:
+                self.f.write(' {0:18s} {1:60s}'.format(keyword.upper(), value) + os.linesep)
         self.f.write('-FILE/REFERENCE' + os.linesep)
 
 
@@ -432,10 +423,10 @@ class SINEXBlock(metaclass=abc.ABCMeta):
         sline = line_remainder.split(':')
         year = int(sline[0])
         if year < 100:
-            format = '%y'
+            date_format = '%y'
         else:
-            format = '%Y'
-        epoch = dt.datetime.strptime(sline[0].decode(), format)
+            date_format = '%Y'
+        epoch = dt.datetime.strptime(sline[0].decode(), date_format)
         epoch += dt.timedelta(days=int(sline[1]) - 1)
         epoch += dt.timedelta(seconds=int(sline[2][0:5]))
 
@@ -851,7 +842,7 @@ def loadcsr06mascons(file_name):
     """
     output_grid = CSRMasconGridRL06()
 
-    dataset = netCDF4.Dataset(file_name)
+    dataset = Dataset(file_name)
     longitude = np.deg2rad(dataset['lon'])
     latitude = np.deg2rad(dataset['lat'])
     times = np.asarray(dataset['time'])
@@ -891,7 +882,7 @@ def loadrl06mascongrids(file_name, scale=1e-2, data_layer='lwe_thickness'):
     time_series : grates.gravityfield.TimeSeries
         TimeSeries instance
     """
-    dataset = netCDF4.Dataset(file_name)
+    dataset = Dataset(file_name)
     longitude = np.deg2rad(dataset['lon'])
     longitude[longitude > np.pi] -= 2 * np.pi
     idx_lon = np.argsort(longitude, kind='stable')

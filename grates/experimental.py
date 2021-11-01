@@ -5,17 +5,14 @@
 Experimental features with frequent interface changes.
 """
 
-import abc
+import pickle
 import numpy as np
-import scipy.integrate
 import scipy.linalg as la
 import scipy.signal as sig
 import grates.kernel
 import grates.utilities
-import netCDF4
 import grates.grid
 import grates.filter
-import pickle
 
 
 class BlockedVDK(grates.filter.OrderWiseFilter):
@@ -200,7 +197,7 @@ def vce_psd(x, y, nperseg=256, initial_variance=1, max_iter=5, detrend=False, wi
     initial_covariance[0] = initial_variance
     variance_components = (dct_matrix@initial_covariance[:, np.newaxis]).squeeze()
 
-    for iteration in range(max_iter):
+    for _ in range(max_iter):
         covariance_function = (dct_matrix@variance_components[:, np.newaxis]).squeeze()
         covariance_matrix = la.toeplitz(covariance_function, covariance_function)
 
@@ -338,58 +335,58 @@ def var_spectrum(ar_model, freqs):
 
 
 def unscented_transform(func, x_mean, x_covariance, alpha=1e-3, kappa=0, beta=2):
-        """
-        Unscented transform after _[1].
+    """
+    Unscented transform after _[1].
 
-        Parameters
-        ----------
-        func : callable
-            function through which the random variable is propagated
-        x_mean : ndarray(n,)
-            estimated mean of input variable
-        x_covariance : ndarray(n, n)
-            estimated covariance matrix of input variable
-        alpha : float
-            small positive value
-        kappa : float
-            scaling parameter
-        beta : float
-            factor for prior knowledge of distribution (beta = 2 is ideal for Gaussian variables)
+    Parameters
+    ----------
+    func : callable
+        function through which the random variable is propagated
+    x_mean : ndarray(n,)
+        estimated mean of input variable
+    x_covariance : ndarray(n, n)
+        estimated covariance matrix of input variable
+    alpha : float
+        small positive value
+    kappa : float
+        scaling parameter
+    beta : float
+        factor for prior knowledge of distribution (beta = 2 is ideal for Gaussian variables)
 
-        Returns
-        -------
-        y_mean : ndarray(m,)
-            estimated mean of output variable
-        y_covariance : ndarray(m, m)
-            estimated covariance matrix of output variable
+    Returns
+    -------
+    y_mean : ndarray(m,)
+        estimated mean of output variable
+    y_covariance : ndarray(m, m)
+        estimated covariance matrix of output variable
 
-        References
-        ----------
-        .. [1] R. Van der Merwe "Sigma-Point Kalman Filters for Probabilitic
-            Inference in Dynamic State-Space Models" (Doctoral dissertation)
-        """
-        n = x_mean.size
-        scaling_factor = alpha**2 * (n + kappa) - n
+    References
+    ----------
+    .. [1] R. Van der Merwe "Sigma-Point Kalman Filters for Probabilitic
+        Inference in Dynamic State-Space Models" (Doctoral dissertation)
+    """
+    n = x_mean.size
+    scaling_factor = alpha**2 * (n + kappa) - n
 
-        S = np.linalg.cholesky((n + scaling_factor) * x_covariance)
+    S = np.linalg.cholesky((n + scaling_factor) * x_covariance)
 
-        c = 0.5 / (n + scaling_factor)
-        w_covariance = np.full(2 * n + 1, c)
-        w_mean = np.full(2 * n + 1, c)
-        w_covariance[0] = scaling_factor / (n + scaling_factor) + (1 - alpha**2 + beta)
-        w_mean[0] = scaling_factor / (n + scaling_factor)
+    c = 0.5 / (n + scaling_factor)
+    w_covariance = np.full(2 * n + 1, c)
+    w_mean = np.full(2 * n + 1, c)
+    w_covariance[0] = scaling_factor / (n + scaling_factor) + (1 - alpha**2 + beta)
+    w_mean[0] = scaling_factor / (n + scaling_factor)
 
-        y0 = func(x_mean)
-        sigma_out = np.zeros((y0.size, w_mean.size))
-        sigma_out[:, 0] = y0
-        for k in range(n):
-            sigma_out[:, k + 1] = func(x_mean + S[:, k])
-            sigma_out[:, k + n + 1] = func(x_mean - S[:, k])
+    y0 = func(x_mean)
+    sigma_out = np.zeros((y0.size, w_mean.size))
+    sigma_out[:, 0] = y0
+    for k in range(n):
+        sigma_out[:, k + 1] = func(x_mean + S[:, k])
+        sigma_out[:, k + n + 1] = func(x_mean - S[:, k])
 
-        y_mean = sigma_out @ w_mean
-        y_covariance = ((sigma_out - y_mean[:, np.newaxis]) * w_covariance) @ (sigma_out - y_mean[:, np.newaxis]).T
+    y_mean = sigma_out @ w_mean
+    y_covariance = ((sigma_out - y_mean[:, np.newaxis]) * w_covariance) @ (sigma_out - y_mean[:, np.newaxis]).T
 
-        return y_mean, y_covariance
+    return y_mean, y_covariance
 
 
 def fit_kernel_coefficients(lambda_n, min_degree, max_degree, continuity_constraint=False):

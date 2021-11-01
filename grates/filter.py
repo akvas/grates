@@ -5,12 +5,11 @@
 Spatial filters for post-processing of potential coefficients.
 """
 
+import abc
+import numpy as np
 from grates.gravityfield import PotentialCoefficients
 import grates.kernel
 import grates.utilities
-import numpy as np
-import abc
-import scipy.signal as sig
 
 
 class SpatialFilter(metaclass=abc.ABCMeta):
@@ -510,95 +509,3 @@ class FilterKernel(grates.kernel.AnisotropicKernel):
         K2 = (K * grates.utilities.ravel_coefficients(kn, min_degree, max_degree)[np.newaxis, :]) * grates.utilities.ravel_coefficients(kn_prime, min_degree, max_degree)[:, np.newaxis]
 
         super(FilterKernel, self).__init__(K2, min_degree, max_degree)
-
-    def spatial_resolution(self, central_longitude=0, central_latitude=0, azimuth=0, max_psi=np.pi, nsteps=100, mtf_threshold=1e-3):
-        """
-        Determine the spatial resolution of the filter kernel along a great circle segment in a given direction.
-        The spatial resolution is determined on the basis of the modulation transfer function. Two Dirac impulses
-        are placed on the sphere and filtered. The first impulse is placed on the central point, the second is
-        shifted along a great circle segment in the givel direction. The two peaks can be resolved once a local minimum
-        along the great circle between the two Dirac impulses is present.
-
-        Parameters
-        ----------
-        central_longitude : float
-            longitude of source point in radians
-        central_latitude : float
-            latitude of source point in radians
-        azimuth : float, ndarray(m,)
-            azimuth of great circle segment in radians
-        max_psi : float
-            maximum spherical distance in radians
-        nsteps : int
-            resolution of the points along the great circle segment
-
-        Returns
-        -------
-        spatial_resolution : ndarray(m,)
-            spatial resolution along the given azimuth in radians
-        """
-        psi = np.linspace(0, max_psi, nsteps)
-        theta0 = np.pi * 0.5 - (psi + central_latitude)
-        x0 = np.vstack(
-            (np.sin(theta0) * np.cos(central_longitude), np.sin(theta0) * np.sin(central_longitude), np.cos(theta0)))
-
-        ux = x0[0, 0]
-        uy = x0[1, 0]
-        uz = x0[2, 0]
-
-        azimuth_array = np.atleast_1d(azimuth)
-        spatial_resolution = np.zeros(azimuth_array.size)
-
-        search_factor = int(nsteps // 10)
-
-        for i in range(azimuth_array.size):
-            ca = np.cos(azimuth_array[i])
-            sa = np.sin(azimuth_array[i])
-
-            rotation_matrix = np.array(
-                [[ca + ux ** 2 * (1 - ca), ux * uy * (1 - ca) - uz * sa, ux * uz * (1 - ca) + uy * sa],
-                 [uy * ux * (1 - ca) + uz * sa, ca + uy ** 2 * (1 - ca), uy * uz * (1 - ca) - ux * sa],
-                 [uz * ux * (1 - ca) - uy * sa, uz * uy * (1 - ca) + ux * sa, ca + uz ** 2 * (1 - ca)]])
-            x = rotation_matrix @ x0
-            lon = -np.arctan2(x[1, :], x[0, :])
-            lat = np.pi * 0.5 - np.arctan2(np.sqrt(x[0, :] ** 2 + x[1, :] ** 2), x[2, :])
-
-            kn1 = self.evaluate(lon[0], lat[0], lon, lat).flatten()
-
-            lower_bound = psi.size - search_factor
-            upper_bound = psi.size
-            for k in range(0, psi.size, search_factor):
-                kn2 = self.evaluate(lon[k], lat[k], lon[0:k + 1:search_factor], lat[0:k + 1:search_factor]).flatten()
-
-                target_function = -kn1[0:k + 1:search_factor] - kn2
-                peaks, _ = sig.find_peaks(target_function)
-                if len(peaks) > 0:
-                    upper_bound = k + 1
-                    lower_bound = max(k - search_factor, 0)
-                    break
-
-            for k in range(lower_bound, upper_bound):
-                kn2 = self.evaluate(lon[k], lat[k], lon[0:k + 1], lat[0:k + 1]).flatten()
-                target_function = -kn1[0:k + 1] - kn2
-                peaks, _ = sig.find_peaks(target_function)
-                if len(peaks) > 0:
-                    spatial_resolution[i] = psi[k]
-                    break
-
-            #     edge_threshold = min(kn[0], kn[-1])
-            #     mtf = 0 if np.min(kn) >= edge_threshold else 1 - kn[int(kn.size // 2)] / np.max(kn)
-            #     if mtf > mtf_threshold:
-            #         upper_bound = k + 1
-            #         lower_bound = max(k - search_factor, 0)
-            #         break
-            #
-            # for k in range(lower_bound, upper_bound):
-            #     kn2 = self.evaluate(lon[k], lat[k], lon[0:k + 1], lat[0:k + 1], kernel=kernel).flatten()
-            #     kn = kn1[0:k + 1] + kn2
-            #     edge_threshold = min(kn[0], kn[-1])
-            #     mtf = 0 if np.min(kn) >= edge_threshold else 1 - kn[int(kn.size // 2)] / np.max(kn)
-            #     if mtf > mtf_threshold:
-            #         spatial_resolution[i] = psi[k]
-            #         break
-
-        return spatial_resolution

@@ -5,8 +5,8 @@
 Auxiliary functions.
 """
 
-import numpy as np
 import abc
+import numpy as np
 import grates.time
 
 
