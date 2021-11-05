@@ -6,11 +6,14 @@ Auxiliary functions.
 """
 
 import abc
+import typing
+import datetime as dt
 import numpy as np
+import numpy.typing as npt
 import grates.time
 
 
-def legendre_functions(max_degree, colat):
+def legendre_functions(max_degree: int, colat: typing.Union[float, npt.ArrayLike]) -> npt.NDArray[np.float64]:
     """
     Associated fully normalized Legendre functions (1st kind).
 
@@ -59,7 +62,7 @@ def legendre_functions(max_degree, colat):
     return function_array
 
 
-def legendre_functions_per_order(max_degree, order, colat):
+def legendre_functions_per_order(max_degree: int, order: int, colat: typing.Union[float, npt.ArrayLike]) -> npt.NDArray[np.float64]:
     """
     Compute fully normalized associated Legendre functions for a specific order.
 
@@ -115,7 +118,7 @@ def legendre_functions_per_order(max_degree, order, colat):
     return function_array
 
 
-def legendre_polynomials(max_degree, colat, derivative=None):
+def legendre_polynomials(max_degree: int, colat: typing.Union[float, npt.ArrayLike], derivative: int = None) -> npt.NDArray[np.float64]:
     """
     Fully normalized Legendre polynomials.
 
@@ -182,7 +185,7 @@ def legendre_polynomials(max_degree, colat, derivative=None):
     return polynomial_array
 
 
-def legendre_summation(coefficients, colat, derivative=None):
+def legendre_summation(coefficients: npt.NDArray, colat: npt.ArrayLike, derivative: int = None) -> npt.NDArray[np.float64]:
     """
     Compute the linear combination of Legendre polynomials using the Clenshaw algorithm [1]_.
 
@@ -212,20 +215,9 @@ def legendre_summation(coefficients, colat, derivative=None):
 
     t = np.cos(np.atleast_1d(colat))
 
-    if derivative is None:
+    if derivative == 1:
         for k in np.arange(coefficients.size - 1, 0, -1):
-            alpha = np.sqrt((2 * k + 1) * (2 * k + 3)) / (k + 1)
-            beta = -np.sqrt((2 * k + 5) / (2 * k + 1)) * (k + 1) / (k + 2)
-
-            bk = coefficients[k] + alpha * t * b1 + beta * b2
-            b2 = b1
-            b1 = bk
-
-        return coefficients[0] + np.sqrt(3) * t * b1 - 0.5 * np.sqrt(5) * b2
-
-    elif derivative == 1:
-        for k in np.arange(coefficients.size - 1, 0, -1):
-            alpha = np.sqrt(2 * k + 3) * np.sqrt(2 * k + 1) / k;
+            alpha = np.sqrt(2 * k + 3) * np.sqrt(2 * k + 1) / k
             beta = -np.sqrt((2 * k + 5) / (2 * k + 1)) * (k + 2) / (k + 1)
 
             bk = coefficients[k] + alpha * t * b1 + beta * b2
@@ -234,9 +226,9 @@ def legendre_summation(coefficients, colat, derivative=None):
 
         return np.sqrt(3) * b1
 
-    elif derivative == 2:
+    if derivative == 2:
         for k in np.arange(coefficients.size - 1, 1, -1):
-            alpha = np.sqrt(2 * k + 3) * np.sqrt(2 * k + 1) / (k - 1);
+            alpha = np.sqrt(2 * k + 3) * np.sqrt(2 * k + 1) / (k - 1)
             beta = -np.sqrt((2 * k + 5) / (2 * k + 1)) * (k + 3) / k
 
             bk = coefficients[k] + alpha * t * b1 + beta * b2
@@ -245,8 +237,18 @@ def legendre_summation(coefficients, colat, derivative=None):
 
         return 3 * np.sqrt(5) * b1
 
+    for k in np.arange(coefficients.size - 1, 0, -1):
+        alpha = np.sqrt((2 * k + 1) * (2 * k + 3)) / (k + 1)
+        beta = -np.sqrt((2 * k + 5) / (2 * k + 1)) * (k + 1) / (k + 2)
 
-def trigonometric_functions(max_degree, lon):
+        bk = coefficients[k] + alpha * t * b1 + beta * b2
+        b2 = b1
+        b1 = bk
+
+    return coefficients[0] + np.sqrt(3) * t * b1 - 0.5 * np.sqrt(5) * b2
+
+
+def trigonometric_functions(max_degree: int, lon: typing.Union[float, npt.ArrayLike]) -> npt.NDArray[np.float64]:
     """
     Convenience function to compute the trigonometric functions (cosine, sine) for the use
     in spherical harmonics.
@@ -275,7 +277,7 @@ def trigonometric_functions(max_degree, lon):
     return cs_array
 
 
-def spherical_harmonics(max_degree, colat, lon):
+def spherical_harmonics(max_degree: int, colat: typing.Union[float, npt.ArrayLike], lon: typing.Union[float, npt.ArrayLike]) -> npt.NDArray[np.float64]:
     """
     Fully normalized spherical harmonics.
 
@@ -307,7 +309,7 @@ def spherical_harmonics(max_degree, colat, lon):
     return sh_array
 
 
-def ravel_coefficients(array, min_degree=0, max_degree=None):
+def ravel_coefficients(array: npt.NDArray, min_degree: int = 0, max_degree: int = None) -> npt.NDArray[np.float64]:
     """
     Ravel a 2d or 3d array representing degree/order.
 
@@ -360,7 +362,7 @@ def ravel_coefficients(array, min_degree=0, max_degree=None):
     return x
 
 
-def unravel_coefficients(vector, min_degree=0, max_degree=None):
+def unravel_coefficients(vector: npt.NDArray, min_degree: int = 0, max_degree: int = None) -> npt.NDArray[np.float64]:
     """
     Unravel a 1d spherical harmonic coefficient vector into a 2d array
 
@@ -411,7 +413,7 @@ def unravel_coefficients(vector, min_degree=0, max_degree=None):
     return array
 
 
-def geocentric_radius(latitude, a=6378137.0, f=298.2572221010**-1):
+def geocentric_radius(latitude: typing.Union[float, npt.ArrayLike], a: float = 6378137.0, f: float = 298.2572221010**-1) -> npt.NDArray[np.float64]:
     """
     Geocentric radius of a point on the ellipsoid.
 
@@ -435,7 +437,7 @@ def geocentric_radius(latitude, a=6378137.0, f=298.2572221010**-1):
     return nu * np.sqrt(np.cos(latitude) ** 2 + (1 - e2) ** 2 * np.sin(latitude) ** 2)
 
 
-def colatitude(latitude, a=6378137.0, f=298.2572221010**-1):
+def colatitude(latitude: typing.Union[float, npt.ArrayLike], a: float = 6378137.0, f: float = 298.2572221010**-1) -> npt.NDArray[np.float64]:
     """
     Co-latitude of a point on the ellipsoid.
 
@@ -466,8 +468,20 @@ class TemporalBasisFunction(metaclass=abc.ABCMeta):
     are a time series.
     """
     @abc.abstractmethod
-    def design_matrix(self, epochs):
-        pass
+    def design_matrix(self, epochs: typing.List[dt.datetime]) -> npt.NDArray[np.float64]:
+        """
+        Returns the design matrix for the determination of the parameters a and b.
+
+        Parameters
+        ----------
+        epochs : list of datetime objects
+            time stamps of the observations
+
+        Returns
+        -------
+        design_matrix : ndarray(n, 2)
+            design matrix
+        """
 
 
 class Oscillation(TemporalBasisFunction):
@@ -483,12 +497,12 @@ class Oscillation(TemporalBasisFunction):
     reference_epoch : datetime object
         reference epoch of the oscillation
     """
-    def __init__(self, period, reference_epoch=None):
+    def __init__(self, period: float, reference_epoch: dt.datetime = None):
 
         self.__period = period
         self.__reference_epoch = reference_epoch
 
-    def design_matrix(self, epochs):
+    def design_matrix(self, epochs: typing.List[dt.datetime]) -> npt.NDArray[np.float64]:
         """
         Returns the design matrix for the determination of the parameters a and b.
 
@@ -526,12 +540,12 @@ class Polynomial(TemporalBasisFunction):
     reference_epoch : datetime object
         reference epoch of the oscillation
     """
-    def __init__(self, degree, reference_epoch=None):
+    def __init__(self, degree: int, reference_epoch: dt.datetime = None):
 
         self.__degree = degree
         self.__reference_epoch = reference_epoch
 
-    def design_matrix(self, epochs):
+    def design_matrix(self, epochs: typing.List[dt.datetime]) -> npt.NDArray[np.float64]:
         """
         Returns the design matrix for the determination of the polynomial coefficients.
 
@@ -557,7 +571,7 @@ class Polynomial(TemporalBasisFunction):
         return dmatrix
 
 
-def kaula_array(min_degree, max_degree, kaula_factor=1e-10, kaula_power=4.0):
+def kaula_array(min_degree: int, max_degree: int, kaula_factor: float = 1e-10, kaula_power: float = 4.0) -> npt.NDArray[np.float64]:
     """
     Return a Kaula-type curve of the form :math:`\sigma_n^2 = f \cdot \frac{1}{n^p}` as a coefficient array.
 
