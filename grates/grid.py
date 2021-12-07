@@ -1025,13 +1025,26 @@ class IrregularGrid(Grid):
         cells : list of SurfaceElement instances
             Voronoi cell for each grid point as surface element instance
         """
-        X = self.cartesian_coordinates()
-        norm = np.sqrt(np.sum(X**2, axis=1))
-        X /= norm[:, np.newaxis]
+        e = np.sqrt(self.flattening * (2 - self.flattening))
+        if self.flattening == 0.0:
+            sin_lat = np.sin(self.latitude)
+        else:
+            q = (1 - e**2) * np.sin(self.latitude) / (1 - e**2 * np.sin(self.latitude)**2) - (1 - e**2) / (2 * e) * np.log((1 - e * np.sin(self.latitude)) / (1 + e * np.sin(self.latitude)))
+            q0 = (1 - e**2) / (1 - e**2) - (1 - e**2) / (2 * e) * np.log((1 - e) / (1 + e))
+
+            sin_lat = q / q0
+
+        sin_lat[sin_lat > 1.0] = 1
+        sin_lat[sin_lat < -1.0] = -1
+        X = np.empty((self.size, 3))
+        X[:, 0] = np.cos(self.longitude) * np.sqrt(1 - sin_lat**2)
+        X[:, 1] = np.sin(self.longitude) * np.sqrt(1 - sin_lat**2)
+        X[:, 2] = sin_lat
 
         sv = scipy.spatial.SphericalVoronoi(X, radius=1)
-        vertex_lon = np.arctan2(sv.vertices[:, 1], sv.vertices[:, 0])
-        vertex_lat = np.arctan2(sv.vertices[:, 2], (1 - self.flattening)**2 * np.sqrt(1 - sv.vertices[:, 2]**2))
+
+        _, theta, vertex_lon = cartesian2spherical(sv.vertices)
+        vertex_lat = authalic2geodetic(np.pi * 0.5 - theta, self.flattening)
 
         cells = []
         for region in sv.regions:
@@ -1191,7 +1204,8 @@ class GaussGrid(RegularGrid):
 
 class ReuterGrid(IrregularGrid):
     """
-    Class representation of a Reuter grid.
+    Class representation of a Reuter grid. The grid is created on the unit sphere and then mapped onto the ellipsoidal surface
+    according to latitude_mapping.
 
     Parameters
     ----------
@@ -1201,8 +1215,10 @@ class ReuterGrid(IrregularGrid):
         semi-major axis of ellipsoid
     f : float
         flattening of ellipsoid
+    latitude_mapping : str
+        One of ('authalic', 'geocentric'). Method on which the unit sphere is mapped onto the ellipsoid.
     """
-    def __init__(self, level, a=6378137.0, f=298.2572221010**-1):
+    def __init__(self, level, a=6378137.0, f=298.2572221010**-1, latitude_mapping='geocentric'):
 
         dlat = np.pi / level
 
@@ -1215,7 +1231,7 @@ class ReuterGrid(IrregularGrid):
         for k in range(1, level):
 
             theta = k * dlat
-            self.__parallels[k] = np.arctan2(np.cos(theta), (1 - f)**2 * np.sin(theta))
+            self.__parallels[k] = np.pi * 0.5 - theta
 
             point_count = int(2 * np.pi / np.arccos((np.cos(dlat) - np.cos(theta)**2) / (np.sin(theta)**2)))
             self.__longitudes[k] = np.empty(point_count)
@@ -1229,6 +1245,13 @@ class ReuterGrid(IrregularGrid):
         self.__areas[-1] = 2 * np.pi * (1 - np.cos(dlat * 0.5))
         for k in range(1, self.__areas.size - 1):
             self.__areas[k] = 4 * np.pi / self.__longitudes[k].size * np.sin(0.5 * dlat) * np.cos(self.__parallels[k])
+
+        if latitude_mapping.lower() == 'authalic':
+            self.__parallels = authalic2geodetic(self.__parallels, f)
+        elif latitude_mapping.lower() == 'geocentric':
+            self.__parallels = geocentric2geodetic(self.__parallels, f)
+        else:
+            raise ValueError('Unknown latitude mapping "{0}".'.format(latitude_mapping))
 
         lons = []
         lats = []
@@ -1255,7 +1278,7 @@ class GeodesicGrid(IrregularGrid):
     """
     Implementation of a Geodesic grid based on the icosahedron.
     """
-    def __init__(self, level, a=6378137.0, f=298.2572221010**-1):
+    def __init__(self, level, a=6378137.0, f=298.2572221010**-1, latitude_mapping='geocentric'):
 
         ratio = np.pi * 0.5 - np.arccos(
             (np.cos(72 * np.pi / 180) + np.cos(72 * np.pi / 180) * np.cos(72 * np.pi / 180)) / (np.sin(72 * np.pi / 180) * np.sin(72 * np.pi / 180)))
@@ -1321,9 +1344,16 @@ class GeodesicGrid(IrregularGrid):
 
         xyz = np.asarray(points_cartesian)
         lons = np.arctan2(xyz[:, 1], xyz[:, 0])
-        lats = np.arctan2(xyz[:, 2], (1 - f) ** 2 * np.sqrt(1 - xyz[:, 2] ** 2))
-        idx = np.lexsort((lons, -lats))
+        lats = np.arctan2(xyz[:, 2], np.sqrt(1 - xyz[:, 2] ** 2))
 
+        if latitude_mapping.lower() == 'authalic':
+            lats = authalic2geodetic(lats, f)
+        elif latitude_mapping.lower() == 'geocentric':
+            lats = geocentric2geodetic(lats, f)
+        else:
+            raise ValueError('Unknown latitude mapping "{0}".'.format(latitude_mapping))
+
+        idx = np.lexsort((lons, -lats))
         super(GeodesicGrid, self).__init__(lons[idx], lats[idx], np.full(lats.size, 4 * np.pi / lats.size), a, f)
         self.__level = level
 
@@ -1921,3 +1951,41 @@ def cartesian2spherical(xyz):
     lon = np.arctan2(xyz[:, 1], xyz[:, 0])
 
     return r, colatitude, lon
+
+
+def authalic_radius(a=6378137.0, f=298.2572221010**-1):
+    """Radius of the authalic sphere corresponding to the ellipsoid (a, f)."""
+    e = np.sqrt(f * (2 - f))
+    q0 = (1 - e**2) / (1 - e**2) - (1 - e**2) / (2 * e) * np.log((1 - e) / (1 + e))
+
+    return a * np.sqrt(q0 * 0.5)
+
+
+def geodetic2authalic(latitude, f=298.2572221010**-1):
+    """Convert geodetic latitude to authalic latitude."""
+    if f == 0.0:
+        return latitude
+
+    e = np.sqrt(f * (2 - f))
+
+    q = (1 - e**2) * np.sin(latitude) / (1 - e**2 * np.sin(latitude)**2) - (1 - e**2) / (2 * e) * np.log((1 - e * np.sin(latitude)) / (1 + e * np.sin(latitude)))
+    q0 = (1 - e**2) / (1 - e**2) - (1 - e**2) / (2 * e) * np.log((1 - e) / (1 + e))
+
+    return np.arcsin(q / q0)
+
+
+def authalic2geodetic(beta, f=298.2572221010**-1):
+    """Convert authalic latitude to geodetic latitude."""
+    e2 = f * (2 - f)
+
+    return beta + (e2 / 3 + 31 / 180 * e2**2 + 517 / 5040 * e2**3) * np.sin(2 * beta) + (23 / 360 * e2**2 + 251 / 3780 * e2**3) * np.sin(4 * beta) + 761 / 45360 * e2**3 * np.sin(6 * beta)
+
+
+def geocentric2geodetic(beta, f=298.2572221010**-1):
+    """Convert geocentric to geodetic latitude."""
+    return np.arctan2(np.sin(beta), np.cos(beta) * (1 - f)**2)
+
+
+def geodetic2geocentric(latitude, f=298.2572221010**-1):
+    """Convert geodetic to geocentric latitude."""
+    return np.arctan2((1 - f)**2 * np.sin(latitude), np.cos(latitude))
