@@ -95,6 +95,41 @@ class Gaussian(SpatialFilter):
         return np.diag(grates.utilities.ravel_coefficients(filter_array, min_degree, max_degree))
 
 
+class Butterworth(SpatialFilter):
+    """
+    Implements the Butterworth filter on the sphere (Devaraju 2015) [1]_.
+
+    References
+    ----------
+
+    .. [1] 	Devaraju, B. (2015) Understanding filtering on the sphere : experiences from filtering GRACE data (http://dx.doi.org/10.18419/opus-3985)
+    """
+    def __init__(self, order, cutoff_degree):
+
+        self.order = order
+        self.cutoff_degree = cutoff_degree
+
+    def filter(self, gravityfield):
+
+        if not isinstance(gravityfield, PotentialCoefficients):
+            raise TypeError("Filter operation only implemented for instances of 'PotentialCoefficients'")
+
+        result = gravityfield.copy()
+        for n in range(0, result.max_degree + 1):
+            result.anm[grates.gravityfield.degree_indices(n)] *= np.power(1 + (n / self.cutoff_degree)**(2 * self.order), -0.5)
+
+        return result
+
+    def matrix(self, min_degree, max_degree):
+
+        filter_array = np.zeros((max_degree + 1, max_degree + 1))
+
+        for n in range(min_degree, max_degree + 1):
+            filter_array[grates.gravityfield.degree_indices(n)] =  np.power(1 + (n / self.cutoff_degree)**(2 * self.order), -0.5)
+
+        return np.diag(grates.utilities.ravel_coefficients(filter_array, min_degree, max_degree))
+
+
 class OrderWiseFilter(SpatialFilter):
     """
     Implements a spherical harmonic filter with a sparse filter matrix.
