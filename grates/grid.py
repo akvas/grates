@@ -210,8 +210,8 @@ class Grid(metaclass=abc.ABCMeta):
 
         Returns
         -------
-        mean : float
-            weighted mean over all grid points in mask
+        rms : float
+            weighted rms over all grid points in mask
 
         See Also
         --------
@@ -226,6 +226,36 @@ class Grid(metaclass=abc.ABCMeta):
             return np.sqrt(np.sum(areas[mask] * self.values[mask]**2) / np.sum(areas[mask]))
         else:
             return np.sqrt(np.mean(self.values[mask]**2))
+
+    def std(self, mask=None):
+        """
+        Compute the weighted standard deviation of grid points, potentially with a mask. The individual points are weighted
+        by their area elements.
+
+        Parameters
+        ----------
+        mask : array_like(point_count), None
+            boolean array with the same shape as the value array. If None, all points are averaged.
+
+        Returns
+        -------
+        std : float
+            weighted standard deviation over all grid points in mask
+
+        See Also
+        --------
+        grates.grid.GeographicGrid.create_mask : member function which creates masks from polygons
+
+        """
+        if mask is None:
+            mask = np.ones(self.point_count, dtype=bool)
+
+        values = self.values[mask] - self.mean(mask)
+        areas = self.area
+        if areas is not None:
+            return np.sqrt(np.sum(areas[mask] * values**2) / np.sum(areas[mask]))
+        else:
+            return np.sqrt(np.mean(values**2))
 
     def create_mask(self, basin, buffer=None):
         """
