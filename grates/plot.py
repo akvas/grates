@@ -91,7 +91,7 @@ def __cell2patch(cell):
         raise ValueError('no known conversion for type ' + str(type(cell)) + '.')
 
 
-def surface_tiles(grid, ax=None, vmin=None, vmax=None, **kwargs):
+def surface_tiles(grid, ax=None, vmin=None, vmax=None, transform=ctp.crs.PlateCarree(), **kwargs):
     """
     Make a 2D plot of the surface tiles (Voronoi cells) of a grid.
 
@@ -116,7 +116,7 @@ def surface_tiles(grid, ax=None, vmin=None, vmax=None, **kwargs):
     """
     patches = [__cell2patch(cell) for cell in grid.voronoi_cells()]
 
-    p = matplotlib.collections.PatchCollection(patches, transform=ctp.crs.PlateCarree(), **kwargs)
+    p = matplotlib.collections.PatchCollection(patches, transform=transform, **kwargs)
     if ax is None:
         ax = plt.gca()
     if grid.values is not None:
