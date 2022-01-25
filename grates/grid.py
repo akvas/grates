@@ -1250,6 +1250,8 @@ class ReuterGrid(IrregularGrid):
             self.__parallels = authalic2geodetic(self.__parallels, f)
         elif latitude_mapping.lower() == 'geocentric':
             self.__parallels = geocentric2geodetic(self.__parallels, f)
+        elif latitude_mapping.lower() == 'conformal':
+            self.__parallels = conformal2geodetic(self.__parallels, f)
         else:
             raise ValueError('Unknown latitude mapping "{0}".'.format(latitude_mapping))
 
@@ -1350,6 +1352,8 @@ class GeodesicGrid(IrregularGrid):
             lats = authalic2geodetic(lats, f)
         elif latitude_mapping.lower() == 'geocentric':
             lats = geocentric2geodetic(lats, f)
+        elif latitude_mapping.lower() == 'conformal':
+            lats = conformal2geodetic(lats, f)
         else:
             raise ValueError('Unknown latitude mapping "{0}".'.format(latitude_mapping))
 
@@ -1989,3 +1993,19 @@ def geocentric2geodetic(beta, f=298.2572221010**-1):
 def geodetic2geocentric(latitude, f=298.2572221010**-1):
     """Convert geodetic to geocentric latitude."""
     return np.arctan2((1 - f)**2 * np.sin(latitude), np.cos(latitude))
+
+
+def geodetic2conformal(latitude, f=298.2572221010**-1):
+    """Convert geodetic to conformal latitude."""
+    e = np.sqrt(f * (2 - f))
+
+    return 2 * np.arctan2(np.sqrt((1 + np.sin(latitude)) * (1 - e * np.sin(latitude))**e), np.sqrt((1 - np.sin(latitude)) * (1 + e * np.sin(latitude))**e)) - np.pi * 0.5
+
+
+def conformal2geodetic(beta, f=298.2572221010**-1):
+    """Convert conformal to geodetic latitude."""
+    e = np.sqrt(f * (2 - f))
+
+    return beta + (1 / 2 * e**2 + 5 / 24 * e**4 + 1 / 12 * e**6 + 13 / 360 * e**8) * np.sin(2 * beta) + \
+                  (7 / 48 * e**4 + 29 / 240 * e**6 + 811 / 11520 * e**8) * np.sin(4 * beta) + \
+                  (7 / 120 * e**6 + 81 / 1120 * e**8) * np.sin(6 * beta) + (4279 / 161280 * e**8) * np.sin(8 * beta)
