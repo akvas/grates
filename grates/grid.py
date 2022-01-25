@@ -2000,7 +2000,11 @@ def authalic2geodetic(beta, f=298.2572221010**-1):
     """Convert authalic latitude to geodetic latitude."""
     e2 = f * (2 - f)
 
-    return beta + (e2 / 3 + 31 / 180 * e2**2 + 517 / 5040 * e2**3) * np.sin(2 * beta) + (23 / 360 * e2**2 + 251 / 3780 * e2**3) * np.sin(4 * beta) + 761 / 45360 * e2**3 * np.sin(6 * beta)
+    return beta + (1 / 3 * e2 + 31 / 180 * e2**2 + 517 / 5040 * e2**3 + 120389 / 181400 * e2**4 + 1362254 / 29937600 * e2**5) * np.sin(2 * beta) + \
+                  (23 / 360 * e2**2 + 251 / 3780 * e2**3 + 102287 / 1814400 * e2**4 + 450739 / 997920 * e2**5) * np.sin(4 * beta) + \
+                  (761 / 45360 * e2**3 + 47561 / 1814400 * e2**4 + 434501 / 14968800 * e2**5) * np.sin(6 * beta) + \
+                  (6059 / 1209600 * e2**4 + 625511 / 59875200 * e2**5) * np.sin(8 * beta) + \
+                  (48017 / 29937600 * e2**5) * np.sin(10 * beta)
 
 
 def geocentric2geodetic(beta, f=298.2572221010**-1):
