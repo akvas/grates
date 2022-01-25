@@ -1870,6 +1870,9 @@ def geodetic2cartesian(lon, lat, h=0, a=6378137.0, f=298.2572221010**-1):
     xyz : ndarray(m,3(
         3D cartesian coordinages
     """
+    if f == 0.0:
+        return spherical2cartesian(a + h, np.pi * 0.5 - lat, lon)
+
     e2 = 2 * f - f ** 2
     radius_of_curvature = a / np.sqrt(1 - e2 * np.sin(lat) ** 2)
 
@@ -1912,6 +1915,10 @@ def cartesian2geodetic(xyz, a=6378137.0, f=298.2572221010**-1, max_iter=10, thre
     h : ndarray(m,)
         ellipsoidal height in meters
     """
+    if f == 0.0:
+        r, colat, lon = cartesian2spherical(xyz)
+        return lon, np.pi * 0.5 - colat, r - a
+
     e2 = 2 * f - f**2
 
     p2 = xyz[:, 0]**2 + xyz[:, 1]**2
@@ -1955,6 +1962,17 @@ def cartesian2spherical(xyz):
     lon = np.arctan2(xyz[:, 1], xyz[:, 0])
 
     return r, colatitude, lon
+
+
+def spherical2cartesian(r, colatitude, lon):
+    """Spherical coordinates to cartesian coordinates."""
+
+    xyz = np.empty((lon.size, 3))
+    xyz[:, 0] = r * np.sin(colatitude) * np.cos(lon)
+    xyz[:, 1] = r * np.sin(colatitude) * np.sin(lon)
+    xyz[:, 2] = r * np.cos(colatitude)
+
+    return xyz
 
 
 def authalic_radius(a=6378137.0, f=298.2572221010**-1):
