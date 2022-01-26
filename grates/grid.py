@@ -9,6 +9,9 @@ import abc
 import numpy as np
 from scipy.special import roots_legendre
 import scipy.spatial
+import scipy.integrate
+import scipy.optimize
+import healpy
 import grates.utilities
 import grates.kernel
 import grates.gravityfield
@@ -1369,6 +1372,100 @@ class GeodesicGrid(IrregularGrid):
         grid.epoch = self.epoch
 
         return grid
+
+
+class SpiralGrid(IrregularGrid):
+    """
+    Implementation of a spiral grid [1]_.
+
+    References
+    ----------
+    .. [1] Hüttig, C., and Stemmer, K. (2008), The spiral grid: A new approach to discretize the sphere
+           and its application to mantle convection, Geochem. Geophys. Geosyst., 9, Q02018, doi:10.1029/2007GC001581.
+
+    Parameters
+    ----------
+    level : int
+        subdivision level
+    a : float
+        semi-major axis of ellipsoid
+    f : float
+        flattening of ellipsoid
+    latitude_mapping : str
+        One of ('authalic', 'geocentric', 'conformal'). Method on which the unit sphere is mapped onto the ellipsoid.
+    """
+    def __init__(self, resolution, a=6378137.0, f=298.2572221010**-1, latitude_mapping='geocentric'):
+
+        def intfun(a, R, c):
+            return R * np.sqrt(1 + c**2 * np.sin(a)**2)
+
+        def optfun(x, sk, R, c):
+            return np.abs(sk - scipy.integrate.quad(intfun, 0, x, args=(R, c))[0])
+
+        R = a
+        c = R * np.pi / resolution * 2
+        S = scipy.integrate.quad(intfun, 0, np.pi, args=(R, c))[0]
+        P = np.ceil(S / resolution) + 1
+        s = S / P
+        point_count = int(P) + 1
+
+        colat = np.empty(point_count)
+        colat[0] = 0
+        for k, sk in enumerate(np.arange(s, S, s)):
+            res = scipy.optimize.minimize_scalar(optfun, args=(sk, R, c))
+            colat[k + 1] = res.x
+        colat[-1] = np.pi
+
+        lons = np.arctan2(np.sin(c * colat), np.cos(c * colat))
+        if latitude_mapping.lower() == 'authalic':
+            lats = grates.grid.authalic2geodetic(np.pi * 0.5 - colat, f)
+        elif latitude_mapping.lower() == 'geocentric':
+            lats = grates.grid.geocentric2geodetic(np.pi * 0.5 - colat, f)
+        elif latitude_mapping.lower() == 'conformal':
+            lats = grates.grid.conformal2geodetic(np.pi * 0.5 - colat, f)
+        else:
+            raise ValueError('Unknown latitude mapping "{0}".'.format(latitude_mapping))
+
+        super(SpiralGrid, self).__init__(lons, lats, np.full(lats.size, 4 * np.pi / lats.size), a, f)
+        self.__resolution = resolution
+
+
+class HEALPix(IrregularGrid):
+    """
+    Class representation of the HEALPix grid [1]_.
+
+    References
+    ----------
+    .. [1] HEALPIX - a Framework for High Resolution Discretization, and Fast Analysis of Data Distributed on the Sphere.
+           By K.M. Górski, Eric Hivon, A.J. Banday, B.D. Wandelt, F.K. Hansen, M. Reinecke, M. Bartelmann, 2005, ApJ 622, 759
+
+    Parameters
+    ----------
+    nside : int
+        NSIDE parameter of the HEALPix sphere
+    a : float
+        semi-major axis of ellipsoid
+    f : float
+        flattening of ellipsoid
+    latitude_mapping : str
+        One of ('authalic', 'geocentric', 'conformal'). Method on which the unit sphere is mapped onto the ellipsoid.
+    """
+    def __init__(self, nside, a=6378137.0, f=298.2572221010**-1, latitude_mapping='geocentric'):
+
+        point_count = healpy.nside2npix(nside)
+
+        colat, lons = healpy.pix2ang(nside, range(point_count))
+        if latitude_mapping.lower() == 'authalic':
+            lats = grates.grid.authalic2geodetic(np.pi * 0.5 - colat, f)
+        elif latitude_mapping.lower() == 'geocentric':
+            lats = grates.grid.geocentric2geodetic(np.pi * 0.5 - colat, f)
+        elif latitude_mapping.lower() == 'conformal':
+            lats = grates.grid.conformal2geodetic(np.pi * 0.5 - colat, f)
+        else:
+            raise ValueError('Unknown latitude mapping "{0}".'.format(latitude_mapping))
+
+        super(HEALPix, self).__init__(lons, lats, np.full(lats.size, 4 * np.pi / lats.size), a, f)
+        self.__nside = nside
 
 
 class GreatCircleSegment(IrregularGrid):
