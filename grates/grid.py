@@ -1219,7 +1219,7 @@ class ReuterGrid(IrregularGrid):
     f : float
         flattening of ellipsoid
     latitude_mapping : str
-        One of ('authalic', 'geocentric'). Method on which the unit sphere is mapped onto the ellipsoid.
+        One of ('authalic', 'geocentric', 'conformal'). Method on which the unit sphere is mapped onto the ellipsoid.
     """
     def __init__(self, level, a=6378137.0, f=298.2572221010**-1, latitude_mapping='geocentric'):
 
@@ -1282,6 +1282,17 @@ class ReuterGrid(IrregularGrid):
 class GeodesicGrid(IrregularGrid):
     """
     Implementation of a Geodesic grid based on the icosahedron.
+
+    Parameters
+    ----------
+    level : int
+        subdivision level
+    a : float
+        semi-major axis of ellipsoid
+    f : float
+        flattening of ellipsoid
+    latitude_mapping : str
+        One of ('authalic', 'geocentric', 'conformal'). Method on which the unit sphere is mapped onto the ellipsoid.
     """
     def __init__(self, level, a=6378137.0, f=298.2572221010**-1, latitude_mapping='geocentric'):
 
