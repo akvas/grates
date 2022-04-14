@@ -86,7 +86,7 @@ def __cell2patch(cell):
         return matplotlib.patches.Rectangle((cell.x*180/np.pi, cell.y*180/np.pi),
                                             cell.width*180/np.pi, cell.height*180/np.pi)
     elif isinstance(cell, grates.grid.PolygonSurfaceElement):
-        return matplotlib.patches.Polygon(cell.xy*180/np.pi)
+        return matplotlib.patches.Polygon(cell.xy[::-1, :]*180/np.pi)
     else:
         raise ValueError('no known conversion for type ' + str(type(cell)) + '.')
 
