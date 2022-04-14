@@ -126,6 +126,56 @@ def surface_tiles(grid, ax=None, vmin=None, vmax=None, transform=ctp.crs.PlateCa
     return p
 
 
+def generate_patches(lon, lat, regions, vertices, transform=ctp.crs.PlateCarree()):
+    """
+    Generate a list of projected patches from a centroid coordinates, region indices and vertex coordinates.
+
+    Parameters
+    ----------
+    lon : ndarray(m,)
+        centroid longitude in radians
+    lat : ndarray(m,)
+        centroid latitude in radians
+    regions : list of ndarrays
+        index arrays corresponding to the points in vertices
+    vertices : ndarray(k, 2)
+        vertices coordinates (lon, lat) in radians
+    transform : cartopy CRS
+        target projection (default: PlateCarree())
+
+    Returns
+    -------
+    patches : list of matplotlib.patches.Polygon
+        projected regions
+    indices : ndarray(l,)
+        index map between centroid index and patch index
+    """
+    centroid_xyz = transform.transform_points(ctp.crs.PlateCarree(), np.rad2deg(lon), np.rad2deg(lat))
+    vertex_xyz = transform.transform_points(ctp.crs.PlateCarree(), np.rad2deg(vertices[:, 0]), np.rad2deg(vertices[:, 1]))
+
+    indices = []
+    patches = []
+    for k, c in enumerate(regions):
+
+        if grates.grid.winding_number(vertex_xyz[c, 0:2], centroid_xyz[k, 0], centroid_xyz[k, 1]):
+            indices.append(k)
+            patches.append(matplotlib.patches.Polygon(vertex_xyz[c, 0:2]))
+        else:
+            left_points = vertex_xyz[c, 0] < 0
+
+            xy1 = vertex_xyz[c, 0:2].copy()
+            xy1[left_points, 0] += (transform.x_limits[1] - transform.x_limits[0])
+            patches.append(matplotlib.patches.Polygon(xy1))
+            indices.append(k)
+
+            xy2 = vertex_xyz[c, 0:2].copy()
+            xy2[~left_points, 0] -= (transform.x_limits[1] - transform.x_limits[0])
+            patches.append(matplotlib.patches.Polygon(xy2))
+            indices.append(k)
+
+    return patches, np.array(indices)
+
+
 def voronoi_bin(lon, lat, C=None, ax=None, grid=grates.grid.GeodesicGrid(25), mincnt=0, reduce_C_function=np.mean,
                 vmin=None, vmax=None, **kwargs):
     """
