@@ -27,7 +27,7 @@ conda activate grates_env
 ```
 Then, install all dependencies:
 ```
-conda install numpy scipy cartopy netcdf4 numpydoc sphinx pyyaml h5py
+conda install numpy scipy cartopy netcdf4 numpydoc sphinx pyyaml h5py healpy
 ```
 To install the current development version of the package, first clone the repository or download the zip archive.
 In the root directory of the package (i.e. the directory containing the ``setup.py`` file), running
