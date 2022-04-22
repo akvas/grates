@@ -11,7 +11,6 @@ from scipy.special import roots_legendre
 import scipy.spatial
 import scipy.integrate
 import scipy.optimize
-import healpy
 import grates.utilities
 import grates.kernel
 import grates.gravityfield
@@ -1439,44 +1438,6 @@ class SpiralGrid(IrregularGrid):
 
         super(SpiralGrid, self).__init__(lons, lats, np.full(lats.size, 4 * np.pi / lats.size), a, f)
         self.__resolution = resolution
-
-
-class HEALPix(IrregularGrid):
-    """
-    Class representation of the HEALPix grid [1]_.
-
-    References
-    ----------
-    .. [1] HEALPIX - a Framework for High Resolution Discretization, and Fast Analysis of Data Distributed on the Sphere.
-           By K.M. Górski, Eric Hivon, A.J. Banday, B.D. Wandelt, F.K. Hansen, M. Reinecke, M. Bartelmann, 2005, ApJ 622, 759
-
-    Parameters
-    ----------
-    nside : int
-        NSIDE parameter of the HEALPix sphere
-    a : float
-        semi-major axis of ellipsoid
-    f : float
-        flattening of ellipsoid
-    latitude_mapping : str
-        One of ('authalic', 'geocentric', 'conformal'). Method on which the unit sphere is mapped onto the ellipsoid.
-    """
-    def __init__(self, nside, a=6378137.0, f=298.2572221010**-1, latitude_mapping='geocentric'):
-
-        point_count = healpy.nside2npix(nside)
-
-        colat, lons = healpy.pix2ang(nside, range(point_count))
-        if latitude_mapping.lower() == 'authalic':
-            lats = grates.grid.authalic2geodetic(np.pi * 0.5 - colat, f)
-        elif latitude_mapping.lower() == 'geocentric':
-            lats = grates.grid.geocentric2geodetic(np.pi * 0.5 - colat, f)
-        elif latitude_mapping.lower() == 'conformal':
-            lats = grates.grid.conformal2geodetic(np.pi * 0.5 - colat, f)
-        else:
-            raise ValueError('Unknown latitude mapping "{0}".'.format(latitude_mapping))
-
-        super(HEALPix, self).__init__(lons, lats, np.full(lats.size, 4 * np.pi / lats.size), a, f)
-        self.__nside = nside
 
 
 class GreatCircleSegment(IrregularGrid):
