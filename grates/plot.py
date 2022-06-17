@@ -319,22 +319,58 @@ def set_axes_width(ax=None, width=None):
         axes width in figure units
 
     """
+    set_axes_size(ax, width, None)
+
+
+def set_axes_size(ax=None, width=None, height=None):
+    """
+    Changes figure width and height so that ax is exactly 'width' wide and 'height' high.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        axes to scale, if None current axes will be used
+    width : float
+        axes width in figure units
+    height : float
+        axes height in figure units
+
+    """
     if ax is None:
         ax = plt.gca()
 
-    if width is None:
-        return
+    if height is None:
+        aw = ax.figure.subplotpars.right - ax.figure.subplotpars.left
+        ah = ax.figure.subplotpars.top - ax.figure.subplotpars.bottom
 
-    aw = ax.figure.subplotpars.right - ax.figure.subplotpars.left
-    ah = ax.figure.subplotpars.top - ax.figure.subplotpars.bottom
+        aspect_ratio = aw / ah
 
-    aspect_ratio = aw / ah
+        fw = width / aw
+        fh = width / aspect_ratio / ah
 
-    fw = width / aw
-    fh = width / aspect_ratio / ah
+        ax.figure.set_size_inches(fw, fh)
+        ax.figure.canvas.draw()
 
-    ax.figure.set_size_inches(fw, fh)
-    ax.figure.canvas.draw()
+    elif width is None:
+        aw = ax.figure.subplotpars.right - ax.figure.subplotpars.left
+        ah = ax.figure.subplotpars.top - ax.figure.subplotpars.bottom
+
+        aspect_ratio = aw / ah
+
+        fh = height / ah
+        fw = height * aspect_ratio / aw
+
+        ax.figure.set_size_inches(fw, fh)
+        ax.figure.canvas.draw()
+    else:
+        aw = ax.figure.subplotpars.right - ax.figure.subplotpars.left
+        ah = ax.figure.subplotpars.top - ax.figure.subplotpars.bottom
+
+        fh = height / ah
+        fw = width / aw
+
+        ax.figure.set_size_inches(fw, fh)
+        ax.figure.canvas.draw()
 
 
 def contour_colors(cmap, levels, insignificance_bound=None, insignificance_color=None):
