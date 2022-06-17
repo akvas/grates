@@ -203,6 +203,57 @@ def loadtn13(file_name, GM=3.986004415E+14, R=6378136.3):
     return TimeSeries(data)
 
 
+def loadtn14(file_name, GM=3.986004415E+14, R=6378136.3):
+    """
+    Read GRACE Technical Note 14 (C20, C30 for GRACE-FO). For the GRACE period, C30 is returned as zero.
+
+    Parameters
+    ----------
+    file_name : str
+        name of ASCII file
+    GM : float
+        geocentric gravitational constant
+    R : float
+        reference radius
+
+    Returns
+    -------
+    time_series_c20 : TimeSeries
+        time series of PotentialCoefficients instances
+    time_series_c30 : TimeSeries
+        time series of PotentialCoefficients instances
+    """
+    ingest_data = False
+    data_c20 = []
+    data_c30 = []
+    with open(file_name, 'r') as f:
+        for line in f:
+            if ingest_data:
+                sline = line.split()
+
+                gf = PotentialCoefficients(GM, R)
+                gf.epoch = grates.time.datetime(float(sline[0]) * 0.5 + float(sline[-2]) * 0.5)
+
+                gf.anm = np.zeros((3, 3))
+                gf.anm[2, 0] = float(sline[2])
+
+                data_c20.append(gf)
+
+                if sline[5] != 'NaN':
+                    gf = PotentialCoefficients(GM, R)
+                    gf.epoch = grates.time.datetime(float(sline[0]) * 0.5 + float(sline[-2]) * 0.5)
+
+                    gf.anm = np.zeros((4, 4))
+                    gf.anm[3, 0] = float(sline[5])
+
+                    data_c30.append(gf)
+
+            if line.strip().startswith('Product:'):
+                ingest_data = True
+
+    return TimeSeries(data_c20), TimeSeries(data_c30)
+
+
 def loadesm(file_name, min_degree=0, max_degree=None):
     """
     Read spherical harmonics coefficients from an ESA ESM archive.
