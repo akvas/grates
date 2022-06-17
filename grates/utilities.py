@@ -225,7 +225,7 @@ def legendre_summation(coefficients, colat, derivative=None):
 
     elif derivative == 1:
         for k in np.arange(coefficients.size - 1, 0, -1):
-            alpha = np.sqrt(2 * k + 3) * np.sqrt(2 * k + 1) / k;
+            alpha = np.sqrt(2 * k + 3) * np.sqrt(2 * k + 1) / k
             beta = -np.sqrt((2 * k + 5) / (2 * k + 1)) * (k + 2) / (k + 1)
 
             bk = coefficients[k] + alpha * t * b1 + beta * b2
@@ -236,7 +236,7 @@ def legendre_summation(coefficients, colat, derivative=None):
 
     elif derivative == 2:
         for k in np.arange(coefficients.size - 1, 1, -1):
-            alpha = np.sqrt(2 * k + 3) * np.sqrt(2 * k + 1) / (k - 1);
+            alpha = np.sqrt(2 * k + 3) * np.sqrt(2 * k + 1) / (k - 1)
             beta = -np.sqrt((2 * k + 5) / (2 * k + 1)) * (k + 3) / k
 
             bk = coefficients[k] + alpha * t * b1 + beta * b2
