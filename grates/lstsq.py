@@ -1312,3 +1312,54 @@ def trsvd(A, singular_value_count, iteration_count=5):
     U, s, Vt = np.linalg.svd(B)
     U = Q @ U
     return U, s, Vt
+
+
+def robust_least_squares(l, A, threshold=2.5, downweight_power=1.5, redundancy_threshold=1e-4, max_iter=10):
+    """
+    Iterative robust least squares adjustment (Huber estimator).
+
+    Parameters
+    ----------
+    l : ndarray(k,)
+        vector of observations
+    A : ndarray(k, p)
+        design matrix
+    threshold : float
+        threshold above which observations are classified as outliers (values are compared to threshold times standard deviation)
+    downweight_power : float
+        power with which outliers are downweighted (higher means stronger downweighting)
+    redundancy_threshold : float
+        threshold which determines whether the standard deviation of a single observation can be reliably determined
+    max_iter : int
+        maximum number of iterations
+
+    Returns
+    -------
+    x_hat : ndarray(p,)
+        estimated parameters
+    C : ndarray(p, p)
+        covariance matrix of estimated parameters
+    outlier_flag : ndarray(k,)
+        boolean array indicating flagged outliers
+    """
+    std_dev = np.ones(l.size)
+    for _ in range(max_iter):
+        l_bar = l / std_dev
+        A_bar = A / std_dev[:, np.newaxis]
+
+        C = np.linalg.inv(A_bar.T @ A)
+
+        x_hat = C @ (A.T @ l_bar)
+        e_hat = l_bar - A_bar @ x_hat
+
+        sigma0 = np.sqrt(np.sum(e_hat**2) / (A.shape[0] - A.shape[1]))
+        C *= sigma0**2
+
+        residual_squaresum = e_hat**2
+        redundancy = 1 - np.sum(A_bar**2, axis=1)
+        loss_argument = np.sqrt(residual_squaresum / redundancy) * std_dev / sigma0
+
+        outlier_flag = np.logical_and(loss_argument > threshold, redundancy > redundancy_threshold)
+        std_dev[outlier_flag] = (loss_argument[outlier_flag] / threshold) ** downweight_power
+
+    return x_hat, C, outlier_flag
