@@ -1,0 +1,12 @@
+name: grates_env
+dependencies:
+  - python
+  - numpy
+  - scipy
+  - cartopy
+  - netcdf4
+  - numpydoc
+  - sphinx
+  - pyyaml
+  - h5py
+  

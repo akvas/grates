@@ -29,6 +29,11 @@ Then, install all dependencies:
 ```
 conda install numpy scipy cartopy netcdf4 numpydoc sphinx pyyaml h5py
 ```
+Alternatively, you can use the `environment.yml` to create an environment and install all dependencies:
+```
+conda env create -f environment.yml
+```
+
 To install the current development version of the package, first clone the repository or download the zip archive.
 In the root directory of the package (i.e. the directory containing the ``setup.py`` file), running
 ```
