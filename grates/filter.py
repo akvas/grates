@@ -222,7 +222,7 @@ class OrderWiseFilter(SpatialFilter):
         return filter_matrix[min_degree * min_degree:, min_degree * min_degree:]
 
 
-class DDK(OrderWiseFilter):
+class DDKGeneric(OrderWiseFilter):
     """
     Implements the DDK filter by Kusche et al. (2009) [1]_.
 
@@ -244,7 +244,7 @@ class DDK(OrderWiseFilter):
         if level < 1:
             raise ValueError('DDK level must be at least 1 (requested DDK{0:d}).'.format(level))
 
-        normals = DDK.__blocked_normals()
+        normals = DDKGeneric._blocked_normals()
         nmax = normals[0].shape[0] - 1
         weights = 10**(15 - level) * np.arange(nmax + 1, dtype=float) ** 4
         weights[0] = 1
@@ -254,10 +254,10 @@ class DDK(OrderWiseFilter):
             m = nmax + 1 - normals_block.shape[0]
             array.append(np.linalg.solve(normals_block + np.diag(weights[m:]), normals_block))
 
-        super(DDK, self).__init__(array)
+        super(DDKGeneric, self).__init__(array)
 
     @staticmethod
-    def __blocked_normals():
+    def _blocked_normals():
         """
         Return the orderwise normal equation blocks of the DDK normal equation matrix.
 
@@ -278,7 +278,7 @@ class DDK(OrderWiseFilter):
         matrix : ndarray(n, n)
             dense DDK normal equation matrix
         """
-        normals = DDK.__blocked_normals()
+        normals = DDKGeneric._blocked_normals()
         max_degree = normals[0].shape[0] - 1
 
         coefficient_count = (max_degree + 1) * (max_degree + 1)
@@ -295,6 +295,58 @@ class DDK(OrderWiseFilter):
                 normals[2 * m][0:max_degree + 1 - m, 0:max_degree + 1 - m]
 
         return normal_matrix[4:, 4:]
+
+
+class DDK(OrderWiseFilter):
+    """
+    Implements the DDK filter by Kusche et al. (2009) [1]_ as used by ICGEM [2]_.
+
+    The power law weights (see [3]_ for details) for the individual filters is given by:
+
+    DDK1 w =     10**14 * n**4
+    DDK2 w =     10**13 * n**4
+    DDK3 w =     10**12 * n**4
+    DDK4 w = 5 * 10**11 * n**4
+    DDK5 w =     10**11 * n**4
+    DDK6 w = 5 * 10**10 * n**4
+    DDK7 w =     10**10 * n**4
+    DDK8 w = 5 * 10**9  * n**4
+
+    Parameters
+    ----------
+    level : int
+        DDK filter level (positive, non-zero)
+
+    References
+    ----------
+
+    .. [1] Kusche, J., Schmidt, R., Petrovic, S. et al. Decorrelated GRACE time-variable gravity solutions by GFZ,
+           and their validation using a hydrological model. J Geod 83, 903–913 (2009).
+           https://doi.org/10.1007/s00190-009-0308-3
+
+    .. [2] http://icgem.gfz-potsdam.de
+
+    .. [3] https://github.com/strawpants/GRACE-filter/blob/7839c96a0a9cef01693b80eb1f98e8fb0a1ac11c/README.md
+
+    """
+    def __init__(self, level):
+
+        scale_factor = {1: 1e14, 2: 1e13, 3: 1e12, 4: 5e11, 5: 1e11, 6: 5e10, 7: 1e10, 8: 5e9}
+
+        normals = DDKGeneric._blocked_normals()
+        nmax = normals[0].shape[0] - 1
+        try:
+            weights = scale_factor[level] * np.arange(nmax + 1, dtype=float) ** 4
+        except KeyError:
+            raise ValueError('DDK level must be between 1 and 8 (requested DDK{0:d}).'.format(level))
+        weights[0] = 1
+
+        array = []
+        for normals_block in normals:
+            m = nmax + 1 - normals_block.shape[0]
+            array.append(np.linalg.solve(normals_block + np.diag(weights[m:]), normals_block))
+
+        super(DDK, self).__init__(array)
 
 
 class BlockedNormalsVDK(OrderWiseFilter):
