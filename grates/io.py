@@ -550,7 +550,7 @@ class SINEXSphericalHarmonicsVector(SINEXBlock):
         else:
             sigmax = np.array(sigmax)
 
-        return SINEXSphericalHarmonicsVector(grates.gravityfield.CoefficientSequence(coefficients), np.array(x), sigmax)
+        return SINEXSphericalHarmonicsVector(grates.gravityfield.CoefficientSequence(coefficients), np.array(x), sigmax, block_type=block_type)
 
     def write(self, f):
         """
@@ -733,7 +733,7 @@ class SINEXBlockPlaceholder(SINEXBlock):
     of an unknown block and drops all information.
     """
     def __init__(self):
-        self.type = 'PLACEHOLDER'
+        self.block_type = 'PLACEHOLDER'
 
     @staticmethod
     def from_file(f):
@@ -856,20 +856,19 @@ def loadsinexnormals(file_name):
 
     """
     blocks = loadsinex(file_name)
-    block_dict = {b.type: b for b in blocks}
+    block_dict = {b.block_type: b for b in blocks}
     block_types = set(block_dict.keys())
+    required_blocks_6b = {b'SOLUTION/MATRIX_APRIORI', b'SOLUTION/NORMAL_EQUATION_MATRIX',
+                          b'SOLUTION/NORMAL_EQUATION_VECTOR', b'SOLUTION/STATISTICS'}
 
-    required_blocks_6b = {'SOLUTION/MATRIX_APRIORI', 'SOLUTION/NORMAL_EQUATION_MATRIX',
-                          'SOLUTION/NORMAL_EQUATION_VECTOR', 'SOLUTION/STATISTICS'}
-
-    required_blocks_6c = {'SOLUTION/NORMAL_EQUATION_MATRIX', 'SOLUTION/NORMAL_EQUATION_VECTOR', 'SOLUTION/STATISTICS'}
+    required_blocks_6c = {b'SOLUTION/NORMAL_EQUATION_MATRIX', b'SOLUTION/NORMAL_EQUATION_VECTOR', b'SOLUTION/STATISTICS'}
 
     if required_blocks_6b.issubset(block_types) or required_blocks_6c.issubset(block_types):
 
-        N = block_dict['SOLUTION/NORMAL_EQUATION_MATRIX'].matrix
-        n = block_dict['SOLUTION/NORMAL_EQUATION_VECTOR'].to_vector()[:, np.newaxis]
-        lPl = np.atleast_1d(block_dict['SOLUTION/STATISTICS'].observation_square_sum)
-        obs_count = block_dict['SOLUTION/STATISTICS'].observation_count
+        N = block_dict[b'SOLUTION/NORMAL_EQUATION_MATRIX'].matrix
+        n = block_dict[b'SOLUTION/NORMAL_EQUATION_VECTOR'].x[:, np.newaxis]
+        lPl = np.atleast_1d(block_dict[b'SOLUTION/STATISTICS'].observation_square_sum)
+        obs_count = block_dict[b'SOLUTION/STATISTICS'].observation_count
 
         return N, n, lPl, obs_count
     else:
