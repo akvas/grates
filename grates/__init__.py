@@ -5,8 +5,8 @@
 grates - Gravity Field Analysis Tools for Earth System Studies
 ==============================================================
 
-What is grates
---------------
+What is grates?
+---------------
 
 grates is a free Open Source software package for computing mass anomalies from
 time variable gravity field solutions. It is tailored for products of the GRACE
